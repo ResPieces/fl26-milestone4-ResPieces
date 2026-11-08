@@ -88,19 +88,17 @@ namespace aiws::gui
         main_layout->addLayout(hlayout);
         main_layout->addLayout(bottomlayout);
 
-        // resize(900, 900);
-        // qDebug() << size();
-
         auto *central_widget = new QWidget(this);
         central_widget->setLayout(main_layout);
         setCentralWidget(central_widget);
 
         resize(900, 900);
-        // qDebug() << size();
 
-        // Connect widget events to MainWindow handlers.
-        //
-        // These signal names must match your widget header declarations.
+        // M4 Changes
+        corpus_building_ = false;
+        workspace_changed_ = false;
+
+        // Connections
         connect(workspace_widget_,
                 &WorkspaceWidget::add_document_requested,
                 this,
@@ -197,19 +195,68 @@ namespace aiws::gui
 
         status_label_->setText("Document added; rebuild corpus");
 
+        workspace_changed_ = true;
+
         invalidate_corpus();
         update_action_states();
     }
 
     void MainWindow::build_corpus()
     {
-        processing_core_.rebuild(workspace_);
+        if (corpus_building_)
+            return;
 
-        corpus_current_ = true;
-        status_label_->setText("Corpus Built Successfully");
-        QString message = QString("Corpus: Ready - %1 Chunks").arg(processing_core_.chunk_count());
-        workspace_widget_->set_corpus_status(message);
+        set_build_delay_ms(10000);
+
+        corpus_building_ = true;
+        corpus_current_ = false;
+
+        status_label_->setText("Building Corpus...");
         update_action_states();
+
+        workspace_changed_ = false;
+
+        Workspace tempWorkSpace = workspace_;
+
+        auto promise = std::make_shared<std::promise<BuildResult>>();
+
+        build_future_ = promise->get_future();
+
+        std::cout << "Creating Thread" << std::endl;
+
+        build_thread_ = std::thread([this, tempWorkSpace = std::move(tempWorkSpace), promise, delay_ms = build_delay_ms_]() mutable
+                                    {
+            BuildResult result;
+
+            try
+            {
+                if (delay_ms > 0)
+                {
+                    for (std::size_t i = 0;
+                        i < tempWorkSpace.documents().size();
+                        ++i)
+                    {
+                        std::this_thread::sleep_for(
+                            std::chrono::milliseconds(delay_ms));
+                    }
+                }
+                result.core = std::make_unique<ProcessingCore>();
+
+                result.core->rebuild(tempWorkSpace);
+            }
+            catch (...)
+            {
+                result.error = std::current_exception();
+            }
+
+            // Transfer the result to the future.
+            promise->set_value(std::move(result));
+
+            // Notify the GUI thread that the build has finished.
+            QMetaObject::invokeMethod(
+                this,
+                "corpus_build_finished",
+                Qt::QueuedConnection); });
     }
 
     void MainWindow::document_selected(int row)
@@ -339,6 +386,8 @@ namespace aiws::gui
         update_action_states();
         // std::cout << "Action States Updated" << std::endl;
 
+        workspace_changed_ = true;
+
         status_label_->setText("Workspace Reset");
         // std::cout << "Done" << std::endl;
     }
@@ -392,6 +441,8 @@ namespace aiws::gui
         context_widget_->reset();
     }
 
+    // M4 Functions:
+
     bool MainWindow::add_document_file(const QString &path)
     {
 
@@ -406,26 +457,85 @@ namespace aiws::gui
             return false;
         }
 
-        QFileInfo fileInfo(filePath);
+        QFileInfo fileInfo(path);
         QString fileName = fileInfo.fileName();
 
         QTextStream in(&file);
         QString fileContents = in.readAll();
 
-        Document newDoc = Document(filePath.toStdString(), fileName.toStdString(), fileContents.toStdString());
+        Document newDoc = Document(path.toStdString(), fileName.toStdString(), fileContents.toStdString());
 
         workspace_.add_document(newDoc);
 
         workspace_widget_->add_document(fileName);
+        workspace_changed_ = true;
 
         invalidate_corpus();
         update_action_states();
         return true;
     }
 
-    void set_build_delay_ms(int ms_per_document)
+    void MainWindow::set_build_delay_ms(int ms_per_document)
     {
-        build_delay_ms = ms_per_document;
+        build_delay_ms_ = ms_per_document;
+    }
+
+    void MainWindow::corpus_build_finished()
+    {
+        std::cout << "In build finished" << std::endl;
+
+        if (build_thread_.joinable())
+            build_thread_.join();
+
+        BuildResult result = build_future_.get();
+
+        corpus_building_ = false;
+
+        // Check whether the workspace changed during the build.
+        if (workspace_changed_)
+        {
+            status_label_->setText("Corpus Build Discarded");
+            corpus_current_ = false;
+
+            update_action_states();
+            return;
+        }
+
+        // Handle build failures.
+        if (result.error)
+        {
+            try
+            {
+                std::rethrow_exception(result.error);
+            }
+            catch (const std::exception &e)
+            {
+                status_label_->setText(
+                    QString("Corpus Build Failed: %1").arg(e.what()));
+            }
+            catch (...)
+            {
+                status_label_->setText("Corpus Build Failed");
+            }
+
+            corpus_current_ = false;
+            update_action_states();
+            return;
+        }
+
+        // Accept the completed corpus.
+        processing_core_ = std::move(*result.core);
+
+        corpus_current_ = true;
+
+        status_label_->setText("Corpus Built Successfully");
+
+        QString message = QString("Corpus: Ready - %1 Chunks")
+                              .arg(processing_core_.chunk_count());
+
+        workspace_widget_->set_corpus_status(message);
+
+        update_action_states();
     }
 
 } // namespace aiws::gui
