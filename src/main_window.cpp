@@ -65,6 +65,7 @@ namespace aiws::gui
             "    padding: 5px;"
             "}");
         status_label_ = new QLabel("Ready", this);
+        status_label_->setObjectName("currentStatus");
 
         auto *hlayout = new QHBoxLayout;
         hlayout->addWidget(term_inspector_widget_);
@@ -157,6 +158,12 @@ namespace aiws::gui
         update_action_states();
     }
 
+    MainWindow::~MainWindow()
+    {
+        if (build_thread_.joinable())
+            build_thread_.join();
+    }
+
     void MainWindow::set_exit_callback(ExitCallback callback) noexcept
     {
         exit_callback_ = callback;
@@ -206,8 +213,6 @@ namespace aiws::gui
         if (corpus_building_)
             return;
 
-        set_build_delay_ms(10000);
-
         corpus_building_ = true;
         corpus_current_ = false;
 
@@ -222,7 +227,7 @@ namespace aiws::gui
 
         build_future_ = promise->get_future();
 
-        std::cout << "Creating Thread" << std::endl;
+        // std::cout << "Creating Thread" << std::endl;
 
         build_thread_ = std::thread([this, tempWorkSpace = std::move(tempWorkSpace), promise, delay_ms = build_delay_ms_]() mutable
                                     {
@@ -234,7 +239,7 @@ namespace aiws::gui
                 {
                     for (std::size_t i = 0;
                         i < tempWorkSpace.documents().size();
-                        ++i)
+                        i++)
                     {
                         std::this_thread::sleep_for(
                             std::chrono::milliseconds(delay_ms));
@@ -482,7 +487,7 @@ namespace aiws::gui
 
     void MainWindow::corpus_build_finished()
     {
-        std::cout << "In build finished" << std::endl;
+        // std::cout << "In build finished" << std::endl;
 
         if (build_thread_.joinable())
             build_thread_.join();
@@ -491,7 +496,8 @@ namespace aiws::gui
 
         corpus_building_ = false;
 
-        // Check whether the workspace changed during the build.
+// Check whether the workspace changed during the build.
+#ifndef AIWS_FAULT_ACCEPT_STALE
         if (workspace_changed_)
         {
             status_label_->setText("Corpus Build Discarded");
@@ -500,10 +506,12 @@ namespace aiws::gui
             update_action_states();
             return;
         }
+#endif
 
         // Handle build failures.
         if (result.error)
         {
+#ifndef AIWS_FAULT_LOSE_FAILURE
             try
             {
                 std::rethrow_exception(result.error);
@@ -520,6 +528,7 @@ namespace aiws::gui
 
             corpus_current_ = false;
             update_action_states();
+#endif
             return;
         }
 

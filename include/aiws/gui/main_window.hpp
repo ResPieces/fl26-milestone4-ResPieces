@@ -57,6 +57,8 @@ namespace aiws::gui
          */
         explicit MainWindow(QWidget *parent = nullptr);
 
+        ~MainWindow();
+
         /**
          * @brief Registers the callback invoked when the user requests Exit.
          * @param callback Function pointer to invoke for the Exit action. A null
