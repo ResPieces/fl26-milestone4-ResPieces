@@ -140,6 +140,9 @@ namespace aiws::gui
 
         void corpus_build_finished();
 
+        /** @brief Adds a file already read by the IPC worker thread. */
+        void add_remote_document(const QString &path, const QString &contents);
+
     private:
         /**
          * @brief Updates availability of actions that depend on current application state.
@@ -158,6 +161,9 @@ namespace aiws::gui
          * @brief Clears displayed search and context output that depends on processing state.
          */
         void clear_processing_outputs();
+
+        /** @brief Adds validated document contents on the GUI thread. */
+        void add_document_contents(const QString &path, const QString &contents);
 
         Workspace workspace_;
         ProcessingCore processing_core_;

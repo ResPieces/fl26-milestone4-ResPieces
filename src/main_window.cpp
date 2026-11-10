@@ -450,7 +450,6 @@ namespace aiws::gui
 
     bool MainWindow::add_document_file(const QString &path)
     {
-
         if (path.isEmpty())
             return false;
 
@@ -462,13 +461,26 @@ namespace aiws::gui
             return false;
         }
 
-        QFileInfo fileInfo(path);
-        QString fileName = fileInfo.fileName();
-
         QTextStream in(&file);
         QString fileContents = in.readAll();
 
-        Document newDoc = Document(path.toStdString(), fileName.toStdString(), fileContents.toStdString());
+        add_document_contents(path, fileContents);
+        return true;
+    }
+
+    void MainWindow::add_remote_document(const QString &path, const QString &contents)
+    {
+        add_document_contents(path, contents);
+    }
+
+    void MainWindow::add_document_contents(const QString &path, const QString &contents)
+    {
+        if (path.isEmpty())
+            return;
+
+        QFileInfo fileInfo(path);
+        const QString fileName = fileInfo.fileName();
+        Document newDoc = Document(path.toStdString(), fileName.toStdString(), contents.toStdString());
 
         workspace_.add_document(newDoc);
 
@@ -477,7 +489,6 @@ namespace aiws::gui
 
         invalidate_corpus();
         update_action_states();
-        return true;
     }
 
     void MainWindow::set_build_delay_ms(int ms_per_document)
