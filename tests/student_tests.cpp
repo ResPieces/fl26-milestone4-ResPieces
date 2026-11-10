@@ -3,6 +3,7 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QLabel>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -38,6 +39,16 @@ private:
         return nullptr;
     }
 
+    static QLineEdit *find_query_editor(MainWindow &window)
+    {
+        for (auto *editor : window.findChildren<QLineEdit *>())
+        {
+            if (editor->placeholderText() == QStringLiteral("Enter search query"))
+                return editor;
+        }
+        return nullptr;
+    }
+
 private slots:
     void base_build_test()
     {
@@ -69,6 +80,19 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(status->text(),
                                   QStringLiteral("Corpus Build Discarded"),
                                   5000);
+
+        auto *query_editor = find_query_editor(window);
+        auto *search_button = find_button(window, "Search");
+        QVERIFY(query_editor != nullptr);
+        QVERIFY(search_button != nullptr);
+        query_editor->setText("file");
+        QVERIFY(!search_button->isEnabled());
+
+        build_button->click();
+        QTRY_COMPARE_WITH_TIMEOUT(status->text(),
+                      QStringLiteral("Corpus Built Successfully"),
+                      5000);
+        QVERIFY(search_button->isEnabled());
     }
 
     void reset_while_building()
@@ -110,9 +134,16 @@ private slots:
 
         MainWindow window;
         auto *status = window.findChild<QLabel *>("currentStatus");
+        auto *query_editor = find_query_editor(window);
+        auto *search_button = find_button(window, "Search");
+        auto *inspect_button = find_button(window, "Inspect");
         QVERIFY(status != nullptr);
+        QVERIFY(query_editor != nullptr);
+        QVERIFY(search_button != nullptr);
+        QVERIFY(inspect_button != nullptr);
         QVERIFY(window.add_document_file(path));
         QVERIFY(window.add_document_file(path));
+        query_editor->setText("file");
 
         auto *build_button = find_button(window, "Build Corpus");
         QVERIFY(build_button != nullptr);
@@ -121,6 +152,42 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(
             status->text().startsWith(QStringLiteral("Corpus Build Failed:")),
             5000);
+        QVERIFY(!search_button->isEnabled());
+        QVERIFY(!inspect_button->isEnabled());
+    }
+
+    void unchanged_workspace_build_becomes_current()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+
+        const QString path = create_test_doc(directory, "current.txt");
+        QVERIFY(!path.isEmpty());
+
+        MainWindow window;
+        auto *status = window.findChild<QLabel *>("currentStatus");
+        auto *search_button = find_button(window, "Search");
+        auto *inspect_button = find_button(window, "Inspect");
+        auto *query_editor = find_query_editor(window);
+        QVERIFY(status != nullptr);
+        QVERIFY(search_button != nullptr);
+        QVERIFY(inspect_button != nullptr);
+        QVERIFY(query_editor != nullptr);
+
+        QVERIFY(window.add_document_file(path));
+        query_editor->setText("file");
+        QVERIFY(!search_button->isEnabled());
+        QVERIFY(!inspect_button->isEnabled());
+
+        auto *build_button = find_button(window, "Build Corpus");
+        QVERIFY(build_button != nullptr);
+        build_button->click();
+
+        QTRY_COMPARE_WITH_TIMEOUT(status->text(),
+                                  QStringLiteral("Corpus Built Successfully"),
+                                  5000);
+        QVERIFY(search_button->isEnabled());
+        QVERIFY(inspect_button->isEnabled());
     }
 
     void destroying_window_during_build_joins_worker()
@@ -135,7 +202,7 @@ private slots:
         elapsed.start();
         {
             MainWindow window;
-            window.set_build_delay_ms(250);
+            window.set_build_delay_ms(10000);
             QVERIFY(window.add_document_file(path));
 
             auto *build_button = find_button(window, "Build Corpus");
@@ -143,8 +210,8 @@ private slots:
             build_button->click();
         }
 
-        QVERIFY2(elapsed.elapsed() < 5000,
-                 "Destroying the window did not finish the worker promptly");
+        QVERIFY2(elapsed.elapsed() < 1000,
+             "Window destruction waited for the entire simulated build delay");
     }
 };
 

@@ -17,6 +17,7 @@
 #include <QFileInfo>
 #include <QMessageBox>
 
+#include <algorithm>
 #include <iostream>
 
 namespace aiws::gui
@@ -97,7 +98,6 @@ namespace aiws::gui
 
         // M4 Changes
         corpus_building_ = false;
-        workspace_changed_ = false;
 
         // Connections
         connect(workspace_widget_,
@@ -160,6 +160,7 @@ namespace aiws::gui
 
     MainWindow::~MainWindow()
     {
+        cancel_build_.store(true);
         if (build_thread_.joinable())
             build_thread_.join();
     }
@@ -197,12 +198,11 @@ namespace aiws::gui
         Document newDoc = Document(filePath.toStdString(), fileName.toStdString(), fileContents.toStdString());
 
         workspace_.add_document(newDoc);
+        workspace_changed_ = true;
 
         workspace_widget_->add_document(fileName);
 
         status_label_->setText("Document added; rebuild corpus");
-
-        workspace_changed_ = true;
 
         invalidate_corpus();
         update_action_states();
@@ -220,6 +220,7 @@ namespace aiws::gui
         update_action_states();
 
         workspace_changed_ = false;
+        cancel_build_.store(false);
 
         Workspace tempWorkSpace = workspace_;
 
@@ -238,13 +239,22 @@ namespace aiws::gui
                 if (delay_ms > 0)
                 {
                     for (std::size_t i = 0;
-                        i < tempWorkSpace.documents().size();
+                        i < tempWorkSpace.documents().size() && !cancel_build_.load();
                         i++)
                     {
-                        std::this_thread::sleep_for(
-                            std::chrono::milliseconds(delay_ms));
+                        int elapsed_ms = 0;
+                        while (elapsed_ms < delay_ms && !cancel_build_.load())
+                        {
+                            const int slice_ms = std::min(10, delay_ms - elapsed_ms);
+                            std::this_thread::sleep_for(std::chrono::milliseconds(slice_ms));
+                            elapsed_ms += slice_ms;
+                        }
                     }
                 }
+
+                if (cancel_build_.load())
+                    return;
+
                 result.core = std::make_unique<ProcessingCore>();
 
                 result.core->rebuild(tempWorkSpace);
@@ -258,10 +268,14 @@ namespace aiws::gui
             promise->set_value(std::move(result));
 
             // Notify the GUI thread that the build has finished.
-            QMetaObject::invokeMethod(
-                this,
-                "corpus_build_finished",
-                Qt::QueuedConnection); });
+            if (!cancel_build_.load())
+            {
+                QMetaObject::invokeMethod(
+                    this,
+                    "corpus_build_finished",
+                    Qt::QueuedConnection);
+            }
+        });
     }
 
     void MainWindow::document_selected(int row)
@@ -383,6 +397,7 @@ namespace aiws::gui
         // std::cout << "Widgets Reset" << std::endl;
 
         workspace_.clear();
+        workspace_changed_ = true;
         // std::cout << "Workspace Cleared" << std::endl;
 
         invalidate_corpus();
@@ -390,8 +405,6 @@ namespace aiws::gui
 
         update_action_states();
         // std::cout << "Action States Updated" << std::endl;
-
-        workspace_changed_ = true;
 
         status_label_->setText("Workspace Reset");
         // std::cout << "Done" << std::endl;
@@ -408,24 +421,12 @@ namespace aiws::gui
     void MainWindow::update_action_states()
     {
         bool has_documents = !workspace_.documents().empty();
+        bool can_process_query = corpus_current_ && search_widget_->has_query();
 
-        workspace_widget_->set_build_corpus_enabled(has_documents);
+        workspace_widget_->set_build_corpus_enabled(has_documents && !corpus_building_);
         term_inspector_widget_->set_inspection_enabled(corpus_current_);
-
-        if (search_widget_->has_query())
-        {
-            search_widget_->set_search_enabled(true);
-
-            if (corpus_current_)
-            {
-                context_widget_->set_build_context_enabled(true);
-            }
-        }
-        else
-        {
-            search_widget_->set_search_enabled(false);
-            context_widget_->set_build_context_enabled(false);
-        }
+        search_widget_->set_search_enabled(can_process_query);
+        context_widget_->set_build_context_enabled(can_process_query);
     }
 
     void MainWindow::invalidate_corpus()
@@ -450,6 +451,7 @@ namespace aiws::gui
 
     bool MainWindow::add_document_file(const QString &path)
     {
+
         if (path.isEmpty())
             return false;
 
@@ -461,34 +463,21 @@ namespace aiws::gui
             return false;
         }
 
+        QFileInfo fileInfo(path);
+        QString fileName = fileInfo.fileName();
+
         QTextStream in(&file);
         QString fileContents = in.readAll();
 
-        add_document_contents(path, fileContents);
-        return true;
-    }
-
-    void MainWindow::add_remote_document(const QString &path, const QString &contents)
-    {
-        add_document_contents(path, contents);
-    }
-
-    void MainWindow::add_document_contents(const QString &path, const QString &contents)
-    {
-        if (path.isEmpty())
-            return;
-
-        QFileInfo fileInfo(path);
-        const QString fileName = fileInfo.fileName();
-        Document newDoc = Document(path.toStdString(), fileName.toStdString(), contents.toStdString());
+        Document newDoc = Document(path.toStdString(), fileName.toStdString(), fileContents.toStdString());
 
         workspace_.add_document(newDoc);
-
-        workspace_widget_->add_document(fileName);
         workspace_changed_ = true;
 
+        workspace_widget_->add_document(fileName);
         invalidate_corpus();
         update_action_states();
+        return true;
     }
 
     void MainWindow::set_build_delay_ms(int ms_per_document)
@@ -509,7 +498,7 @@ namespace aiws::gui
 
 // Check whether the workspace changed during the build.
 #ifndef AIWS_FAULT_ACCEPT_STALE
-        if (workspace_changed_)
+    if (workspace_changed_)
         {
             status_label_->setText("Corpus Build Discarded");
             corpus_current_ = false;

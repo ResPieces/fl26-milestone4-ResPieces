@@ -9,6 +9,7 @@
 #include <future>
 #include <memory>
 #include <exception>
+#include <atomic>
 
 class QLabel;
 class QPushButton;
@@ -140,9 +141,6 @@ namespace aiws::gui
 
         void corpus_build_finished();
 
-        /** @brief Adds a file already read by the IPC worker thread. */
-        void add_remote_document(const QString &path, const QString &contents);
-
     private:
         /**
          * @brief Updates availability of actions that depend on current application state.
@@ -162,9 +160,6 @@ namespace aiws::gui
          */
         void clear_processing_outputs();
 
-        /** @brief Adds validated document contents on the GUI thread. */
-        void add_document_contents(const QString &path, const QString &contents);
-
         Workspace workspace_;
         ProcessingCore processing_core_;
         bool corpus_current_{false};
@@ -182,7 +177,8 @@ namespace aiws::gui
         int build_delay_ms_{0};
         bool corpus_building_;
         std::thread build_thread_;
-        bool workspace_changed_;
+        std::atomic<bool> cancel_build_{false};
+        bool workspace_changed_{false};
         std::future<BuildResult> build_future_;
     };
 
