@@ -1,0 +1,148 @@
+PS C:\Users\GameC\OneDrive\Desktop\Classwork\ECE-3574\fl26-milestone4-ResPieces> git log --stat --date=iso
+commit 908976faf92b66294a8ca58699872f5e93472e6a (HEAD -> main)
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-09 23:01:23 -0500
+
+    Should be done except for history.txt
+
+ DESIGN.md           |  18 +--
+ src/main.cpp        |  15 +++
+ src/main_window.cpp |   7 +-
+ tools/aiws_send.cpp | 344 ----------------------------------------------------
+ 4 files changed, 28 insertions(+), 356 deletions(-)
+
+commit 9785c39509ccf6546d7b3c9b3a1e34ab506901fe
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-09 22:38:59 -0500
+
+    Addressing Autograder errors
+
+ DESIGN.md                        | 60 +++++++++++++++++++++++++++-
+ include/aiws/gui/main_window.hpp | 10 ++---
+ src/main_window.cpp              | 85 +++++++++++++++++-----------------------
+ tests/student_tests.cpp          | 73 ++++++++++++++++++++++++++++++++--
+ 4 files changed, 169 insertions(+), 59 deletions(-)
+
+commit 73d07bcbf49d31677ffd9e759b8bd31f969b19fb
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-09 20:00:48 -0500
+
+    Trying to figure out how tf to do CR-1. We have never covered this in class :|
+
+ include/aiws/gui/main_window.hpp |   6 +
+ src/main_window.cpp              |  23 ++-
+ tools/aiws_send.cpp              | 340 ++++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 359 insertions(+), 10 deletions(-)
+
+commit 6e968a711a14775f78b6716a31650823ace0fc28 (origin/main)
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-07 22:24:28 -0500
+
+    Finished base M4 Requirements
+
+ include/aiws/gui/main_window.hpp |   2 +
+ src/main_window.cpp              |  21 ++++--
+ tests/student_tests.cpp          | 154 ++++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 169 insertions(+), 8 deletions(-)
+
+commit 502472d66a146106f52f72ac3483fd61a33c56dd
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-07 20:46:52 -0500
+
+    Added thread for rebuilding
+
+ include/aiws/gui/main_window.hpp | 306 +++++++++++++++++++++------------------
+ src/main_window.cpp              | 142 ++++++++++++++++--
+ 2 files changed, 290 insertions(+), 158 deletions(-)
+
+commit 0b80e7be9ed0d83940534917c49648fd4e054516
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-07 18:46:05 -0500
+
+    Updated with finished M3
+
+ .qt/QtDeploySupport.cmake     |  45 +++++
+ dockerfile                    |  32 ++++
+ src/chunker.cpp               |  93 +++++++++
+ src/context_builder.cpp       |  29 +++
+ src/context_widget.cpp        | 107 +++++++++++
+ src/corpus_index.cpp          | 181 ++++++++++++++++++
+ src/document.cpp              |  14 ++
+ src/main.cpp                  |  34 ++++
+ src/main_window.cpp           | 431 ++++++++++++++++++++++++++++++++++++++++++
+ src/processing_core.cpp       | 127 +++++++++++++
+ src/retrieval_engine.cpp      |  86 +++++++++
+ src/search_result_model.cpp   | 140 ++++++++++++++
+ src/search_widget.cpp         | 209 ++++++++++++++++++++
+ src/term_inspector_widget.cpp | 112 +++++++++++
+ src/text_processor.cpp        | 116 ++++++++++++
+ src/workspace.cpp             |  17 ++
+ src/workspace_widget.cpp      | 113 +++++++++++
+ tools/aiws_send.cpp           |  12 ++
+ 18 files changed, 1898 insertions(+)
+
+commit 8fa2cfd28e799afde737e4290be7c1ad95264f44
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-10-28 22:33:36 -0400
+
+    Initial commit
+
+ .gitignore                                 |   3 +
+ CMakeLists.txt                             |  57 +++++++++++
+ DESIGN.md                                  |   3 +
+ DESIGN_NOTE.md                             |   3 +
+ STARTER_README.pdf                         | Bin 0 -> 39600 bytes
+ data/public/doc_ai.txt                     |   3 +
+ data/public/doc_retrieval.txt              |   3 +
+ data/public/doc_systems.txt                |   3 +
+ data/public/queries.txt                    |   4 +
+ include/aiws/chunker.hpp                   |  25 +++++
+ include/aiws/chunking_strategy.hpp         |  18 ++++
+ include/aiws/context_builder.hpp           |  13 +++
+ include/aiws/context_strategy.hpp          |  17 +++
+ include/aiws/corpus_index.hpp              |  36 +++++++
+ include/aiws/document.hpp                  |  22 ++++
+ include/aiws/gui/context_widget.hpp        |  75 ++++++++++++++
+ include/aiws/gui/main_window.hpp           | 159 +++++++++++++++++++++++++++++
+ include/aiws/gui/resettable.hpp            |  22 ++++
+ include/aiws/gui/search_result_model.hpp   |  84 +++++++++++++++
+ include/aiws/gui/search_widget.hpp         | 105 +++++++++++++++++++
+ include/aiws/gui/term_inspector_widget.hpp |  81 +++++++++++++++
+ include/aiws/gui/workspace_widget.hpp      | 101 ++++++++++++++++++
+ include/aiws/processing_core.hpp           |  53 ++++++++++
+ include/aiws/processing_types.hpp          |  38 +++++++
+ include/aiws/retrieval_engine.hpp          |  18 ++++
+ include/aiws/retrieval_strategy.hpp        |  20 ++++
+ include/aiws/text_processor.hpp            |  29 ++++++
+ include/aiws/workspace.hpp                 |  19 ++++
+ tests/student_tests.cpp                    |   2 +
+ 29 files changed, 1016 insertions(+)
+(END)
+ include/aiws/gui/resettable.hpp            |  22 ++++
+ include/aiws/gui/search_result_model.hpp   |  84 +++++++++++++++
+ include/aiws/gui/search_widget.hpp         | 105 +++++++++++++++++++
+ include/aiws/gui/term_inspector_widget.hpp |  81 +++++++++++++++
+ include/aiws/gui/workspace_widget.hpp      | 101 ++++++++++++++++++
+ include/aiws/processing_core.hpp           |  53 ++++++++++
+ include/aiws/processing_types.hpp          |  38 +++++++
+ include/aiws/retrieval_engine.hpp          |  18 ++++
+ include/aiws/retrieval_strategy.hpp        |  20 ++++
+ include/aiws/text_processor.hpp            |  29 ++++++
+ include/aiws/workspace.hpp                 |  19 ++++
+ tests/student_tests.cpp                    |   2 +
+ 29 files changed, 1016 insertions(+)
+(END)
+ include/aiws/gui/resettable.hpp            |  22 ++++
+ include/aiws/gui/search_result_model.hpp   |  84 +++++++++++++++
+ include/aiws/gui/search_widget.hpp         | 105 +++++++++++++++++++
+ include/aiws/gui/term_inspector_widget.hpp |  81 +++++++++++++++
+ include/aiws/gui/workspace_widget.hpp      | 101 ++++++++++++++++++
+ include/aiws/processing_core.hpp           |  53 ++++++++++
+ include/aiws/processing_types.hpp          |  38 +++++++
+ include/aiws/retrieval_engine.hpp          |  18 ++++
+ include/aiws/retrieval_strategy.hpp        |  20 ++++
+ include/aiws/text_processor.hpp            |  29 ++++++
+ include/aiws/workspace.hpp                 |  19 ++++
+ tests/student_tests.cpp                    |   2 +
+ 29 files changed, 1016 insertions(+)
+(END)
