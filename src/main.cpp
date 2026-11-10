@@ -22,11 +22,26 @@ namespace
     }
 }
 
+int parse_build_delay(int argc, char *argv[])
+{
+    for (int i = 1; i < argc; ++i)
+    {
+        if (std::string(argv[i]) == "--build-delay-ms")
+        {
+            return std::stoi(argv[i + 1]);
+        }
+    }
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
 
     aiws::gui::MainWindow window;
+    int time = parse_build_delay(argc, argv);
+    window.set_build_delay_ms(time);
     window.set_exit_callback(confirm_exit);
     window.show();
 

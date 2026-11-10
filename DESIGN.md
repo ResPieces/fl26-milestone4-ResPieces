@@ -1,7 +1,10 @@
 # M4 Decision Record
 
 (1) threads and ownership, including the statement for constraint 5;
-
+    * GUI Thread - Owns the Main Window, associated widgets, and the workspace/processing core
+    * Rebuild Thread - Owns a copy of the workspace to rebuild the corpus
+    * Constraint 5 - cancel_build_, a handoff between threads with future.get() in MainWindow.cpp, and
+                        in the destructor for MainWindow
 
 
 (2) how a finished build is judged valid;
@@ -13,8 +16,8 @@
 
 (3) changes since the checkpoint;
     * No work was done for the checkpoint so here is my answer to the original questions:
-        1. processing_core.rebuild() - Isolated on its own thread using a copy of processing_core
-           GUI, widgets and all other functions - Handled within the GUI thread
+        1. GUI Thread - Owns the Main Window, associated widgets, and the workspace/processing core
+            Rebuild Thread - Owns a copy of the workspace to rebuild the corpus
         2. The states of the corpus itself are built/not built. The wider application has more states
             but for this milestone, the corpus' build status is all that matters. The corpus initializes
             as unbuilt until initiated by the user upon pressing the "build" button. When the user presses
@@ -36,8 +39,9 @@
             that variable is still false. If it is, I know that the corpus I've just built is still valid,
             and I display it to the user. If it is true, then the corpus was changed and must be rebuilt,
             which I tell the user.
-        4.  Main Window owns the processing core as a member function. Once a build begins, we use a copy 
-            of the core, which is owned by BuildResult::core. Once the build finishes successfully, that build is moved to/owned by Main Window.
+        4.  Main Window owns the processing core as a member function. Once a build begins, we use a new 
+            core, which is owned by BuildResult::core. Once the build finishes successfully, that core
+            is moved to/owned by Main Window.
         5.  I originally looked into QThread, and began working with it. It was a very intuitive system
             and made implementation, however, it was unfortunately out of scope, and so while I liked it,
             I was unable to proceed with it.
@@ -53,9 +57,9 @@
     * Both fault switches lie in my MainWindow::corpus_build_finished() function.
     * AIWS_FAULT_ACCEPT_STALE bypasses my check for whether or not the workspace was changed. This is
         validated using base_build_test and reset_while_building.
-    * AIWS_FAULT_LOSE_FAILURE 
+    * AIWS_FAULT_LOSE_FAILURE ignores my error reporting and is validated in report_rebuild_failure()
 
 
 (6) AI-use disclosure, required but ungraded.
     * AI used to assist in the creation of test cases and debugging of multithreaded work
-        in main_window.cpp
+        in main_window.cpp as well as providing pointers for solving issues with the autograder.

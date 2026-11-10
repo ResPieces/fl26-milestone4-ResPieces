@@ -264,18 +264,15 @@ namespace aiws::gui
                 result.error = std::current_exception();
             }
 
-            // Transfer the result to the future.
             promise->set_value(std::move(result));
 
-            // Notify the GUI thread that the build has finished.
             if (!cancel_build_.load())
             {
                 QMetaObject::invokeMethod(
                     this,
                     "corpus_build_finished",
                     Qt::QueuedConnection);
-            }
-        });
+            } });
     }
 
     void MainWindow::document_selected(int row)
@@ -498,7 +495,7 @@ namespace aiws::gui
 
 // Check whether the workspace changed during the build.
 #ifndef AIWS_FAULT_ACCEPT_STALE
-    if (workspace_changed_)
+        if (workspace_changed_)
         {
             status_label_->setText("Corpus Build Discarded");
             corpus_current_ = false;
