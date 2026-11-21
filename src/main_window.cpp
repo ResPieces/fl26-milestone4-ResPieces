@@ -243,7 +243,9 @@ namespace aiws::gui
     void MainWindow::build_corpus()
     {
         if (corpus_building_)
-            return;
+        {
+            stop_build();
+        }
 
         corpus_building_ = true;
         corpus_current_ = false;
@@ -478,7 +480,7 @@ namespace aiws::gui
         bool has_documents = !workspace_.documents().empty();
         bool can_process_query = corpus_current_ && search_widget_->has_query();
 
-        workspace_widget_->set_build_corpus_enabled(has_documents && !corpus_building_);
+        workspace_widget_->set_build_corpus_enabled(has_documents);
         term_inspector_widget_->set_inspection_enabled(corpus_current_);
         search_widget_->set_search_enabled(can_process_query);
         context_widget_->set_build_context_enabled(can_process_query);
