@@ -201,6 +201,8 @@ namespace aiws::gui
             return;
         }
 
+        workspace_changed_ = true;
+
         QFileInfo fileInfo(filePath);
         QString fileName = fileInfo.fileName();
 
@@ -210,7 +212,6 @@ namespace aiws::gui
         Document newDoc = Document(filePath.toStdString(), fileName.toStdString(), fileContents.toStdString());
 
         workspace_.add_document(newDoc);
-        workspace_changed_ = true;
 
         workspace_widget_->add_document(fileName);
 
@@ -478,6 +479,8 @@ namespace aiws::gui
             return false;
         }
 
+        workspace_changed_ = true;
+
         QFileInfo fileInfo(path);
         QString fileName = fileInfo.fileName();
 
@@ -487,7 +490,6 @@ namespace aiws::gui
         Document newDoc = Document(path.toStdString(), fileName.toStdString(), fileContents.toStdString());
 
         workspace_.add_document(newDoc);
-        workspace_changed_ = true;
 
         workspace_widget_->add_document(fileName);
         invalidate_corpus();
