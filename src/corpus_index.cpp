@@ -14,7 +14,6 @@ namespace aiws
 
     void CorpusIndex::build(const std::vector<Chunk> &chunks)
     {
-        // TODO: build the searchable index from the supplied chunks.
 
         // Ensure everything is clear
         chunk_by_id_.clear();
@@ -28,7 +27,6 @@ namespace aiws
             std::vector<TokenInfo> tokens = TextProcessor::tokenize(curChunk.text);
 
             chunk_by_id_[curChunk.id] = i;
-            // std::cout << "Adding chunk ID: " << curChunk.id << " at index: " << i << std::endl;
 
             // Loop through each Token
             for (TokenInfo &token : tokens)
@@ -71,7 +69,6 @@ namespace aiws
     std::size_t CorpusIndex::document_frequency(
         const std::string &normalized_term) const noexcept
     {
-        // TODO: return how many chunks contain the requested term.
         std::vector<std::string> normalizedTermVector = TextProcessor::terms(normalized_term);
         if (normalizedTermVector.size() > 1)
         {
@@ -92,7 +89,6 @@ namespace aiws
         const std::string &normalized_term,
         const std::string &chunk_id) const noexcept
     {
-        // TODO: return the requested term's frequency in the specified chunk.
 
         std::vector<std::string> normalizedTermVector = TextProcessor::terms(normalized_term);
         if (normalizedTermVector.size() > 1)
@@ -105,18 +101,13 @@ namespace aiws
         if (it != postings_.end())
         {
 
-            // std::cout << "Searching for chunk ID: " << chunk_id << std::endl;
-
             auto chunkIt = chunk_by_id_.find(chunk_id);
-
-            // std::cout << "Found: " << (chunkIt != chunk_by_id_.end()) << std::endl;
 
             // Checks to see if the ID of the chunk we are looking at is in our postings
             if (chunkIt != chunk_by_id_.end())
             {
                 for (auto &posting : it->second)
                 {
-                    // std::cout << "In Loop" << std::endl;
                     if (posting.chunk_index == chunkIt->second)
                     {
                         return posting.frequency;
@@ -131,7 +122,6 @@ namespace aiws
     const std::vector<CorpusIndex::Posting> *CorpusIndex::postings(
         const std::string &normalized_term) const noexcept
     {
-        // TODO: return the postings associated with the requested term.
         std::vector<std::string> normalizedTermVector = TextProcessor::terms(normalized_term);
 
         // Assumes there is no issues with repeated postings due to given structure of function
@@ -154,7 +144,6 @@ namespace aiws
         const std::vector<Chunk> &chunks,
         const std::string &chunk_id) const noexcept
     {
-        // TODO: find the chunk identified by the requested chunk ID.
         for (const Chunk &chunk : chunks)
         {
             if (chunk.id == chunk_id)
@@ -168,7 +157,6 @@ namespace aiws
 
     std::size_t CorpusIndex::chunk_index(const std::string &chunk_id) const
     {
-        // TODO: return the stored index of the requested chunk ID.
 
         for (std::size_t i = 0; i < chunk_by_id_.size(); i++)
         {

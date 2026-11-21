@@ -228,8 +228,6 @@ namespace aiws::gui
 
         build_future_ = promise->get_future();
 
-        // std::cout << "Creating Thread" << std::endl;
-
         build_thread_ = std::thread([this, tempWorkSpace = std::move(tempWorkSpace), promise, delay_ms = build_delay_ms_]() mutable
                                     {
             BuildResult result;
@@ -317,8 +315,13 @@ namespace aiws::gui
 
     void MainWindow::query_changed(const QString &query)
     {
-        term_inspector_widget_->clear_statistics();
-        update_action_states();
+        // This should always be true because search_widget properly handles query changes, but I didn't know if I could
+        // remove the parameter since that came default with the instructions.
+        if (query == search_widget_->query())
+        {
+            term_inspector_widget_->clear_statistics();
+            update_action_states();
+        }
     }
 
     void MainWindow::build_context_requested(int token_budget)
@@ -343,7 +346,7 @@ namespace aiws::gui
         term_inspector_widget_->clear_statistics();
         const auto &documents = workspace_.documents();
 
-        for (int i = 0; i < documents.size(); ++i)
+        for (size_t i = 0; i < documents.size(); ++i)
         {
             if (documents[i].id() == document_id.toStdString())
             {
@@ -391,20 +394,15 @@ namespace aiws::gui
         {
             widget->reset();
         }
-        // std::cout << "Widgets Reset" << std::endl;
 
         workspace_.clear();
         workspace_changed_ = true;
-        // std::cout << "Workspace Cleared" << std::endl;
 
         invalidate_corpus();
-        // std::cout << "Corpus Invalidated" << std::endl;
 
         update_action_states();
-        // std::cout << "Action States Updated" << std::endl;
 
         status_label_->setText("Workspace Reset");
-        // std::cout << "Done" << std::endl;
     }
 
     void MainWindow::exit_application()
@@ -484,7 +482,6 @@ namespace aiws::gui
 
     void MainWindow::corpus_build_finished()
     {
-        // std::cout << "In build finished" << std::endl;
 
         if (build_thread_.joinable())
             build_thread_.join();
