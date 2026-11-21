@@ -10,6 +10,8 @@
 #include <memory>
 #include <exception>
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
 
 class QLabel;
 class QCloseEvent;
@@ -146,6 +148,13 @@ namespace aiws::gui
         void corpus_build_finished();
 
     private:
+        struct BuildRequest
+        {
+            Workspace workspace;
+            std::shared_ptr<std::promise<BuildResult>> promise;
+            int delay_ms;
+        };
+
         /**
          * @brief Updates availability of actions that depend on current application state.
          */
@@ -164,6 +173,8 @@ namespace aiws::gui
          */
         void clear_processing_outputs();
         void stop_build();
+        void cancel_active_build();
+        void build_worker();
 
         Workspace workspace_;
         ProcessingCore processing_core_;
@@ -178,10 +189,14 @@ namespace aiws::gui
         QPushButton *reset_button_{nullptr};
         QPushButton *exit_button_{nullptr};
 
-        // M4 Additions:
+        // M4 and M5 Additions:
         int build_delay_ms_{0};
         bool corpus_building_;
         std::thread build_thread_;
+        std::mutex build_mutex_;
+        std::condition_variable build_condition_;
+        std::unique_ptr<BuildRequest> pending_build_;
+        bool stopping_build_worker_{false};
         std::atomic<bool> cancel_build_{false};
         bool workspace_changed_{false};
         std::future<BuildResult> build_future_;

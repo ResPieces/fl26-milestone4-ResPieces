@@ -18,8 +18,7 @@
 #include <QFileInfo>
 #include <QMessageBox>
 
-#include <algorithm>
-#include <iostream>
+#include <chrono>
 
 namespace aiws::gui
 {
@@ -157,6 +156,8 @@ namespace aiws::gui
                 &MainWindow::exit_application);
 
         update_action_states();
+
+        build_thread_ = std::thread(&MainWindow::build_worker, this);
     }
 
     MainWindow::~MainWindow()
@@ -172,9 +173,26 @@ namespace aiws::gui
 
     void MainWindow::stop_build()
     {
-        cancel_build_.store(true);
+        {
+            std::lock_guard<std::mutex> lock(build_mutex_);
+            cancel_build_.store(true);
+            stopping_build_worker_ = true;
+        }
+        build_condition_.notify_all();
         if (build_thread_.joinable())
             build_thread_.join();
+    }
+
+    void MainWindow::cancel_active_build()
+    {
+        if (!corpus_building_)
+            return;
+
+        {
+            std::lock_guard<std::mutex> lock(build_mutex_);
+            cancel_build_.store(true);
+        }
+        build_condition_.notify_all();
     }
 
     void MainWindow::set_exit_callback(ExitCallback callback) noexcept
@@ -202,6 +220,7 @@ namespace aiws::gui
         }
 
         workspace_changed_ = true;
+        cancel_active_build();
 
         QFileInfo fileInfo(filePath);
         QString fileName = fileInfo.fileName();
@@ -233,49 +252,62 @@ namespace aiws::gui
         update_action_states();
 
         workspace_changed_ = false;
-        cancel_build_.store(false);
-
-        Workspace tempWorkSpace = workspace_;
 
         auto promise = std::make_shared<std::promise<BuildResult>>();
-
         build_future_ = promise->get_future();
 
-        build_thread_ = std::thread([this, tempWorkSpace = std::move(tempWorkSpace), promise, delay_ms = build_delay_ms_]() mutable
-                                    {
+        {
+            std::lock_guard<std::mutex> lock(build_mutex_);
+            cancel_build_.store(false);
+            pending_build_ = std::make_unique<BuildRequest>(
+                BuildRequest{workspace_, promise, build_delay_ms_});
+        }
+        build_condition_.notify_one();
+    }
+
+    void MainWindow::build_worker()
+    {
+        while (true)
+        {
+            std::unique_ptr<BuildRequest> request;
+            {
+                std::unique_lock<std::mutex> lock(build_mutex_);
+                build_condition_.wait(lock, [this]
+                                      { return stopping_build_worker_ || pending_build_ != nullptr; });
+                if (stopping_build_worker_)
+                    return;
+                request = std::move(pending_build_);
+            }
+
             BuildResult result;
 
             try
             {
-                if (delay_ms > 0)
+                if (request->delay_ms > 0)
                 {
                     for (std::size_t i = 0;
-                        i < tempWorkSpace.documents().size() && !cancel_build_.load();
-                        i++)
+                         i < request->workspace.documents().size() && !cancel_build_.load();
+                         i++)
                     {
-                        int elapsed_ms = 0;
-                        while (elapsed_ms < delay_ms && !cancel_build_.load())
+                        std::unique_lock<std::mutex> lock(build_mutex_);
+                        build_condition_.wait_for(
+                            lock,
+                            std::chrono::milliseconds(request->delay_ms),
+                            [this]
+                            {
+                                return cancel_build_.load() || stopping_build_worker_;
+                            });
+                        if (cancel_build_.load() || stopping_build_worker_)
                         {
-                            const int slice_ms = std::min(10, delay_ms - elapsed_ms);
-                            std::this_thread::sleep_for(std::chrono::milliseconds(slice_ms));
-                            elapsed_ms += slice_ms;
+                            break;
                         }
                     }
                 }
 
-                if (cancel_build_.load()) {
-                    return;
-                }
-
-                result.core = std::make_unique<ProcessingCore>();
-
-                const bool build_completed =
-                    result.core->rebuild(tempWorkSpace, &cancel_build_);
-
-                if (!build_completed)
+                if (!cancel_build_.load())
                 {
-                    promise->set_value(std::move(result));
-                    return;
+                    result.core = std::make_unique<ProcessingCore>();
+                    result.core->rebuild(request->workspace, &cancel_build_);
                 }
             }
             catch (...)
@@ -283,15 +315,21 @@ namespace aiws::gui
                 result.error = std::current_exception();
             }
 
-            promise->set_value(std::move(result));
+            request->promise->set_value(std::move(result));
 
-            if (!cancel_build_.load())
+            bool should_notify = false;
+            {
+                std::lock_guard<std::mutex> lock(build_mutex_);
+                should_notify = !stopping_build_worker_;
+            }
+            if (should_notify)
             {
                 QMetaObject::invokeMethod(
                     this,
                     "corpus_build_finished",
                     Qt::QueuedConnection);
-            } });
+            }
+        }
     }
 
     void MainWindow::document_selected(int row)
@@ -418,6 +456,7 @@ namespace aiws::gui
 
         workspace_.clear();
         workspace_changed_ = true;
+        cancel_active_build();
 
         invalidate_corpus();
 
@@ -480,6 +519,7 @@ namespace aiws::gui
         }
 
         workspace_changed_ = true;
+        cancel_active_build();
 
         QFileInfo fileInfo(path);
         QString fileName = fileInfo.fileName();
@@ -504,10 +544,6 @@ namespace aiws::gui
 
     void MainWindow::corpus_build_finished()
     {
-
-        if (build_thread_.joinable())
-            build_thread_.join();
-
         BuildResult result = build_future_.get();
 
         corpus_building_ = false;
