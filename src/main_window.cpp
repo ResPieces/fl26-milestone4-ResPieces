@@ -244,7 +244,7 @@ namespace aiws::gui
     {
         if (corpus_building_)
         {
-            stop_build();
+            cancel_active_build();
         }
 
         corpus_building_ = true;
