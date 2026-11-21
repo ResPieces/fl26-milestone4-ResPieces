@@ -6,6 +6,7 @@
 #include "aiws/gui/workspace_widget.hpp"
 
 #include <QHBoxLayout>
+#include <QCloseEvent>
 #include <QLabel>
 #include <QPushButton>
 #include <QSplitter>
@@ -160,6 +161,17 @@ namespace aiws::gui
 
     MainWindow::~MainWindow()
     {
+        stop_build();
+    }
+
+    void MainWindow::closeEvent(QCloseEvent *event)
+    {
+        stop_build();
+        QMainWindow::closeEvent(event);
+    }
+
+    void MainWindow::stop_build()
+    {
         cancel_build_.store(true);
         if (build_thread_.joinable())
             build_thread_.join();
@@ -250,12 +262,20 @@ namespace aiws::gui
                     }
                 }
 
-                if (cancel_build_.load())
+                if (cancel_build_.load()) {
                     return;
+                }
 
                 result.core = std::make_unique<ProcessingCore>();
 
-                result.core->rebuild(tempWorkSpace);
+                const bool build_completed =
+                    result.core->rebuild(tempWorkSpace, &cancel_build_);
+
+                if (!build_completed)
+                {
+                    promise->set_value(std::move(result));
+                    return;
+                }
             }
             catch (...)
             {

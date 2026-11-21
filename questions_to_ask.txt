@@ -1,0 +1,4 @@
+1. I lost points in M4 due to an unused parameter in query_changed() in main_window.cpp. What do I do about that?
+    can I just deleted it since it's not used at all?
+
+2. 

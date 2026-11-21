@@ -12,6 +12,7 @@
 #include <atomic>
 
 class QLabel;
+class QCloseEvent;
 class QPushButton;
 class QString;
 class QWidget;
@@ -83,6 +84,9 @@ namespace aiws::gui
 
         // Everything below this line is the M3 design. In M4 it is yours to
         // change: add, remove, or redesign private members, slots, and helpers.
+
+    protected:
+        void closeEvent(QCloseEvent *event) override;
 
     private slots:
         /** @brief Handles a request to select and add a document to the workspace. */
@@ -159,6 +163,7 @@ namespace aiws::gui
          * @brief Clears displayed search and context output that depends on processing state.
          */
         void clear_processing_outputs();
+        void stop_build();
 
         Workspace workspace_;
         ProcessingCore processing_core_;

@@ -64,12 +64,18 @@ namespace aiws
         return TextProcessor::normalize(text);
     }
 
-    void ProcessingCore::rebuild(const Workspace &workspace)
+    bool ProcessingCore::rebuild(const Workspace &workspace,
+                                 const std::atomic<bool> *cancellation)
     {
         std::unordered_set<std::string> document_ids;
         std::vector<Chunk> next_chunks;
         for (std::size_t order = 0; order < workspace.documents().size(); ++order)
         {
+            if (cancellation != nullptr && cancellation->load())
+            {
+                return false;
+            }
+
             const auto &doc = workspace.documents()[order];
             if (!document_ids.insert(doc.id()).second)
             {
@@ -80,9 +86,16 @@ namespace aiws
                                std::make_move_iterator(produced.begin()),
                                std::make_move_iterator(produced.end()));
         }
+
+        if (cancellation != nullptr && cancellation->load())
+        {
+            return false;
+        }
+
         CorpusIndex next_index(next_chunks);
         impl_->chunks = std::move(next_chunks);
         impl_->index = std::move(next_index);
+        return true;
     }
 
     const std::vector<Chunk> &ProcessingCore::chunks() const noexcept { return impl_->chunks; }
