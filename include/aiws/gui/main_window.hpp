@@ -12,6 +12,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <unordered_map>
 
 class QLabel;
 class QCloseEvent;
@@ -145,11 +146,12 @@ namespace aiws::gui
          */
         void exit_application();
 
-        void corpus_build_finished();
+        void corpus_build_finished(int id);
 
     private:
         struct BuildRequest
         {
+            int id;
             Workspace workspace;
             std::shared_ptr<std::promise<BuildResult>> promise;
             int delay_ms;
@@ -199,7 +201,10 @@ namespace aiws::gui
         bool stopping_build_worker_{false};
         std::atomic<bool> cancel_build_{false};
         bool workspace_changed_{false};
-        std::future<BuildResult> build_future_;
+
+        int next_build_id_{0};
+        int current_build_id_{0};
+        std::unordered_map<int, std::future<BuildResult>> build_futures_;
     };
 
 } // namespace aiws::gui

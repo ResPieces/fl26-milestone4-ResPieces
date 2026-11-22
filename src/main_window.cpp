@@ -18,6 +18,8 @@
 #include <QFileInfo>
 #include <QMessageBox>
 
+#include <iostream>
+
 #include <chrono>
 
 namespace aiws::gui
@@ -255,15 +257,22 @@ namespace aiws::gui
 
         workspace_changed_ = false;
 
-        auto promise = std::make_shared<std::promise<BuildResult>>();
-        build_future_ = promise->get_future();
+        const auto id = ++next_build_id_;
+        current_build_id_ = id;
 
+        auto promise = std::make_shared<std::promise<BuildResult>>();
+        build_futures_.emplace(id, promise->get_future());
+
+        std::unique_ptr<BuildRequest> replaced_request;
         {
             std::lock_guard<std::mutex> lock(build_mutex_);
             cancel_build_.store(false);
+            replaced_request = std::move(pending_build_);
             pending_build_ = std::make_unique<BuildRequest>(
-                BuildRequest{workspace_, promise, build_delay_ms_});
+                BuildRequest{id, workspace_, promise, build_delay_ms_});
         }
+        if (replaced_request)
+            build_futures_.erase(replaced_request->id);
         build_condition_.notify_one();
     }
 
@@ -329,7 +338,8 @@ namespace aiws::gui
                 QMetaObject::invokeMethod(
                     this,
                     "corpus_build_finished",
-                    Qt::QueuedConnection);
+                    Qt::QueuedConnection,
+                    Q_ARG(int, request->id));
             }
         }
     }
@@ -544,9 +554,18 @@ namespace aiws::gui
         build_delay_ms_ = ms_per_document;
     }
 
-    void MainWindow::corpus_build_finished()
+    void MainWindow::corpus_build_finished(int id)
     {
-        BuildResult result = build_future_.get();
+        std::cout << "Moments before disaster" << std::endl;
+        auto future_it = build_futures_.find(id);
+        if (future_it == build_futures_.end())
+            return;
+
+        BuildResult result = future_it->second.get();
+        build_futures_.erase(future_it);
+
+        if (id != current_build_id_)
+            return;
 
         corpus_building_ = false;
 
