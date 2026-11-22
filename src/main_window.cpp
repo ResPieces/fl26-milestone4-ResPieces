@@ -556,7 +556,6 @@ namespace aiws::gui
 
     void MainWindow::corpus_build_finished(int id)
     {
-        std::cout << "Moments before disaster" << std::endl;
         auto future_it = build_futures_.find(id);
         if (future_it == build_futures_.end())
             return;
