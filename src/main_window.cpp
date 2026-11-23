@@ -485,8 +485,14 @@ namespace aiws::gui
             }
         }
 
+#ifdef AIWS_FAULT_SILENT_SHUTDOWN
+        // Leaves the worker asleep
+        if (corpus_building_)
+            build_condition_.notify_all();
+#else
         // Wake the worker so it can observe the shutdown state.
         build_condition_.notify_all();
+#endif
         if (build_thread_.joinable())
             build_thread_.join();
     }
