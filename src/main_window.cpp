@@ -432,12 +432,24 @@ namespace aiws::gui
     {
         cancel_active_build();
 
-        ++current_build_id_;
-        corpus_building_ = false;
+        std::vector<Resettable *> widgets = {
+            context_widget_,
+            term_inspector_widget_,
+            search_widget_,
+            workspace_widget_};
+
+        for (Resettable *widget : widgets)
+            widget->reset();
+
+        workspace_.clear();
         workspace_changed_ = true;
+        corpus_building_ = false;
         corpus_current_ = false;
 
         invalidate_corpus();
+        update_action_states();
+
+        status_label_->setText("Workspace Reset");
         set_corpus_state(std::make_unique<IdleCorpusState>());
     }
 
@@ -573,13 +585,21 @@ namespace aiws::gui
             // Lock the mutex since it accesses shared data
             {
                 std::unique_lock<std::mutex> lock(build_mutex_);
+
+                // The function waits here until the build condition is notified and
+                //      stopping_build_worker_ flag is either true or there is a pending build
                 build_condition_.wait(lock, [this]
                                       { return stopping_build_worker_ || pending_build_ != nullptr; });
+
+                // Return if we want to stop the worker
                 if (stopping_build_worker_)
                     return;
+
+                // Otherwise our request is our pending_build_
                 request = std::move(pending_build_);
             }
 
+            // Just notes that a build has started for later use
             emit build_worker_started(request->id);
 
             BuildResult result;
@@ -593,14 +613,16 @@ namespace aiws::gui
                          !request->cancellation->load();
                          i++)
                     {
+
+                        // Lock the mutex since it accesses shared data.
                         std::unique_lock<std::mutex> lock(build_mutex_);
-                        build_condition_.wait_for(
-                            lock,
-                            std::chrono::milliseconds(request->delay_ms),
-                            [this, &request]
-                            {
-                                return request->cancellation->load() || stopping_build_worker_;
-                            });
+
+                        // Wait for the delay_ms to pass or a cancellation/stop to occur.
+                        build_condition_.wait_for(lock, std::chrono::milliseconds(request->delay_ms),
+                                                  [this, &request]
+                                                  { return request->cancellation->load() || stopping_build_worker_; });
+
+                        // Stop the build if we are canceling or stopping the worker.
                         if (request->cancellation->load() || stopping_build_worker_)
                         {
                             break;
@@ -608,6 +630,7 @@ namespace aiws::gui
                     }
                 }
 
+                // If we haven't had a cancellation for this request, perform the rebuild
                 if (!request->cancellation->load())
                 {
                     result.core = std::make_unique<ProcessingCore>();
@@ -616,16 +639,22 @@ namespace aiws::gui
             }
             catch (...)
             {
+                // Report errors
                 result.error = std::current_exception();
             }
 
+            // Ensure our associated promise is supplied with the result.
             request->promise->set_value(std::move(result));
 
             bool should_notify = false;
+
             {
+                // Accessing shared data again
                 std::lock_guard<std::mutex> lock(build_mutex_);
                 should_notify = !stopping_build_worker_;
             }
+
+            // If we are not stopping, continue as normal.
             if (should_notify)
             {
                 QMetaObject::invokeMethod(
@@ -635,6 +664,19 @@ namespace aiws::gui
                     Q_ARG(int, request->id));
             }
         }
+    }
+
+    // Retrieves our future and removes it from the map of futures
+    void MainWindow::corpus_build_finished(int id)
+    {
+        auto future_it = build_futures_.find(id);
+        if (future_it == build_futures_.end())
+            return;
+
+        BuildResult result = future_it->second.get();
+        build_futures_.erase(future_it);
+
+        corpus_state_->buildFinished(*this, id, std::move(result));
     }
 
     void MainWindow::document_selected(int row)
@@ -753,21 +795,7 @@ namespace aiws::gui
 
     void MainWindow::reset_application()
     {
-        std::vector<Resettable *> myWidgets = {context_widget_, term_inspector_widget_, search_widget_, workspace_widget_};
-        for (auto *widget : myWidgets)
-        {
-            widget->reset();
-        }
-
-        workspace_.clear();
-        workspace_changed_ = true;
-        cancel_active_build();
-
-        invalidate_corpus();
-
-        update_action_states();
-
-        status_label_->setText("Workspace Reset");
+        corpus_state_->reset(*this);
     }
 
     void MainWindow::exit_application()
@@ -842,18 +870,6 @@ namespace aiws::gui
     void MainWindow::set_build_delay_ms(int ms_per_document)
     {
         build_delay_ms_ = ms_per_document;
-    }
-
-    void MainWindow::corpus_build_finished(int id)
-    {
-        auto future_it = build_futures_.find(id);
-        if (future_it == build_futures_.end())
-            return;
-
-        BuildResult result = future_it->second.get();
-        build_futures_.erase(future_it);
-
-        corpus_state_->buildFinished(*this, id, std::move(result));
     }
 
 } // namespace aiws::gui
