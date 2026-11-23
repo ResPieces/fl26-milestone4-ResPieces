@@ -25,9 +25,107 @@
 namespace aiws::gui
 {
 
+    // Base Corpus State
+    class CorpusState
+    {
+    public:
+        virtual ~CorpusState() = default;
+        virtual void buildRequested(MainWindow &) = 0;
+        virtual void workspaceChanged(MainWindow &) = 0;
+        virtual void reset(MainWindow &) = 0;
+        virtual void buildFinished(MainWindow &, int, BuildResult) = 0;
+    };
+
+    // Corpus: Invalid, Build: Not In Progress
+    class IdleCorpusState final : public CorpusState
+    {
+    public:
+        void buildRequested(MainWindow &window) override
+        {
+            window.request_build_from_state();
+        }
+        void workspaceChanged(MainWindow &window) override
+        {
+            window.invalidate_corpus();
+        }
+        void reset(MainWindow &window) override
+        {
+            window.reset_from_state();
+        }
+        void buildFinished(MainWindow &window, int id, BuildResult result) override
+        {
+            window.discard_build_from_state(id);
+        }
+    };
+
+    // Corpus: Valid, Build: Not In Progress
+    class ReadyCorpusState final : public CorpusState
+    {
+    public:
+        void buildRequested(MainWindow &window) override
+        {
+            window.request_build_from_state();
+        }
+        void workspaceChanged(MainWindow &window) override
+        {
+            window.workspace_changed_from_state();
+        }
+        void reset(MainWindow &window) override
+        {
+            window.reset_from_state();
+        }
+        void buildFinished(MainWindow &, int, BuildResult) override {}
+    };
+
+    // Corpus: Invalid, Build: In Progress
+    class BuildingCorpusState final : public CorpusState
+    {
+    public:
+        void buildRequested(MainWindow &window) override
+        {
+            window.request_build_from_state();
+        }
+        void workspaceChanged(MainWindow &window) override
+        {
+            window.workspace_changed_from_state();
+        }
+        void reset(MainWindow &window) override
+        {
+            window.reset_from_state();
+        }
+        void buildFinished(MainWindow &window, int id, BuildResult result) override
+        {
+            window.build_finished_from_state(id, std::move(result));
+        }
+    };
+
+    // Corpus: Invalid, Build: In Progress, Obsolete :(
+    class StaleBuildingCorpusState final : public CorpusState
+    {
+    public:
+        void buildRequested(MainWindow &window) override
+        {
+            window.request_build_from_state();
+        }
+        void workspaceChanged(MainWindow &window) override
+        {
+            window.cancel_active_build();
+        }
+        void reset(MainWindow &window) override
+        {
+            window.reset_from_state();
+        }
+        void buildFinished(MainWindow &window, int id, BuildResult result) override
+        {
+            if (id == window.current_build_id_)
+                window.discard_build_from_state(id);
+        }
+    };
+
     MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
     {
         setWindowTitle("AI Workspace");
+        corpus_state_ = std::make_unique<IdleCorpusState>();
 
         auto *title = new QWidget(this);
         title->setStyleSheet(
@@ -167,6 +265,61 @@ namespace aiws::gui
         stop_build();
     }
 
+    // Handles state transitions
+    void MainWindow::set_corpus_state(std::unique_ptr<CorpusState> state)
+    {
+        corpus_state_ = std::move(state);
+    }
+
+    //
+    void MainWindow::request_build_from_state()
+    {
+        corpus_building_ = true;
+        corpus_current_ = false;
+        status_label_->setText("Building Corpus...");
+        update_action_states();
+
+        const int id = ++next_build_id_;
+        current_build_id_ = id;
+
+        auto promise =
+            std::make_shared<std::promise<BuildResult>>();
+        build_futures_.emplace(id, promise->get_future());
+
+        auto cancellation =
+            std::make_shared<std::atomic<bool>>(false);
+
+        std::unique_ptr<BuildRequest> replaced_request;
+        {
+            std::lock_guard<std::mutex> lock(build_mutex_);
+
+            if (active_cancellation_)
+                active_cancellation_->store(true);
+
+            if (pending_build_)
+            {
+                pending_build_->cancellation->store(true);
+                replaced_request = std::move(pending_build_);
+            }
+
+            pending_build_ = std::make_unique<BuildRequest>(
+                BuildRequest{
+                    id,
+                    workspace_,
+                    promise,
+                    build_delay_ms_,
+                    cancellation});
+
+            active_cancellation_ = cancellation;
+        }
+
+        if (replaced_request)
+            build_futures_.erase(replaced_request->id);
+
+        build_condition_.notify_one();
+        set_corpus_state(std::make_unique<BuildingCorpusState>());
+    }
+
     void MainWindow::closeEvent(QCloseEvent *event)
     {
         stop_build();
@@ -177,8 +330,11 @@ namespace aiws::gui
     {
         {
             std::lock_guard<std::mutex> lock(build_mutex_);
-            cancel_build_.store(true);
             stopping_build_worker_ = true;
+            if (active_cancellation_)
+                active_cancellation_->store(true);
+            if (pending_build_)
+                pending_build_->cancellation->store(true);
         }
         build_condition_.notify_all();
         if (build_thread_.joinable())
@@ -187,12 +343,12 @@ namespace aiws::gui
 
     void MainWindow::cancel_active_build()
     {
-        if (!corpus_building_)
-            return;
-
         {
             std::lock_guard<std::mutex> lock(build_mutex_);
-            cancel_build_.store(true);
+            if (active_cancellation_)
+                active_cancellation_->store(true);
+            if (pending_build_)
+                pending_build_->cancellation->store(true);
         }
         build_condition_.notify_all();
     }
@@ -221,8 +377,7 @@ namespace aiws::gui
             return;
         }
 
-        workspace_changed_ = true;
-        cancel_active_build();
+        corpus_state_->workspaceChanged(*this);
 
         QFileInfo fileInfo(filePath);
         QString fileName = fileInfo.fileName();
@@ -244,36 +399,7 @@ namespace aiws::gui
 
     void MainWindow::build_corpus()
     {
-        if (corpus_building_)
-        {
-            cancel_active_build();
-        }
-
-        corpus_building_ = true;
-        corpus_current_ = false;
-
-        status_label_->setText("Building Corpus...");
-        update_action_states();
-
-        workspace_changed_ = false;
-
-        const auto id = ++next_build_id_;
-        current_build_id_ = id;
-
-        auto promise = std::make_shared<std::promise<BuildResult>>();
-        build_futures_.emplace(id, promise->get_future());
-
-        std::unique_ptr<BuildRequest> replaced_request;
-        {
-            std::lock_guard<std::mutex> lock(build_mutex_);
-            cancel_build_.store(false);
-            replaced_request = std::move(pending_build_);
-            pending_build_ = std::make_unique<BuildRequest>(
-                BuildRequest{id, workspace_, promise, build_delay_ms_});
-        }
-        if (replaced_request)
-            build_futures_.erase(replaced_request->id);
-        build_condition_.notify_one();
+        corpus_state_->buildRequested(*this);
     }
 
     void MainWindow::build_worker()
@@ -289,6 +415,8 @@ namespace aiws::gui
                     return;
                 request = std::move(pending_build_);
             }
+
+            emit build_worker_started(request->id);
 
             BuildResult result;
 
@@ -513,8 +641,6 @@ namespace aiws::gui
         term_inspector_widget_->reset();
         context_widget_->reset();
     }
-
-    // M4 Functions:
 
     bool MainWindow::add_document_file(const QString &path)
     {

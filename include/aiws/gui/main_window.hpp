@@ -29,6 +29,12 @@ namespace aiws::gui
         std::exception_ptr error = nullptr;
     };
 
+    class CorpusState;
+    class IdleCorpusState;
+    class ReadyCorpusState;
+    class BuildingCorpusState;
+    class StaleBuildingCorpusState;
+
     class ContextWidget;
     class SearchWidget;
     class TermInspectorWidget;
@@ -44,6 +50,12 @@ namespace aiws::gui
     class MainWindow final : public QMainWindow
     {
         Q_OBJECT
+
+        friend class CorpusState;
+        friend class IdleCorpusState;
+        friend class ReadyCorpusState;
+        friend class BuildingCorpusState;
+        friend class StaleBuildingCorpusState;
 
     public:
         /**
@@ -90,6 +102,9 @@ namespace aiws::gui
 
     protected:
         void closeEvent(QCloseEvent *event) override;
+
+    signals:
+        void build_worker_started(int id);
 
     private slots:
         /** @brief Handles a request to select and add a document to the workspace. */
@@ -155,6 +170,7 @@ namespace aiws::gui
             Workspace workspace;
             std::shared_ptr<std::promise<BuildResult>> promise;
             int delay_ms;
+            std::shared_ptr<std::atomic<bool>> cancellation;
         };
 
         /**
@@ -174,9 +190,16 @@ namespace aiws::gui
          * @brief Clears displayed search and context output that depends on processing state.
          */
         void clear_processing_outputs();
+
         void stop_build();
         void cancel_active_build();
         void build_worker();
+        void request_build_from_state();
+        void workspace_changed_from_state();
+        void reset_from_state();
+        void build_finished_from_state(int id, BuildResult result);
+        void discard_build_from_state(int id);
+        void set_corpus_state(std::unique_ptr<CorpusState> state);
 
         Workspace workspace_;
         ProcessingCore processing_core_;
@@ -198,9 +221,9 @@ namespace aiws::gui
         std::mutex build_mutex_;
         std::condition_variable build_condition_;
         std::unique_ptr<BuildRequest> pending_build_;
-        bool stopping_build_worker_{false};
-        std::atomic<bool> cancel_build_{false};
-        bool workspace_changed_{false};
+        std::atomic<bool> stopping_build_worker_{false};
+        std::shared_ptr<std::atomic<bool>> active_cancellation_;
+        std::unique_ptr<CorpusState> corpus_state_;
 
         int next_build_id_{0};
         int current_build_id_{0};

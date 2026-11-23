@@ -90,8 +90,8 @@ private slots:
 
         build_button->click();
         QTRY_COMPARE_WITH_TIMEOUT(status->text(),
-                      QStringLiteral("Corpus Built Successfully"),
-                      5000);
+                                  QStringLiteral("Corpus Built Successfully"),
+                                  5000);
         QVERIFY(search_button->isEnabled());
     }
 
@@ -199,19 +199,25 @@ private slots:
         QVERIFY(!path.isEmpty());
 
         QElapsedTimer elapsed;
-        elapsed.start();
-        {
-            MainWindow window;
-            window.set_build_delay_ms(10000);
-            QVERIFY(window.add_document_file(path));
+        MainWindow window;
+        QSignalSpy worker_started(&window, &MainWindow::build_worker_started);
+        QVERIFY(worker_started.isValid());
+        window.set_build_delay_ms(10000);
+        QVERIFY(window.add_document_file(path));
 
-            auto *build_button = find_button(window, "Build Corpus");
-            QVERIFY(build_button != nullptr);
+        auto *build_button = find_button(window, "Build Corpus");
+        QVERIFY(build_button != nullptr);
+        window.show();
+        for (int i = 0; i < 10; i++)
+        {
             build_button->click();
         }
+        QTRY_COMPARE_WITH_TIMEOUT(worker_started.size(), 1, 1000);
 
+        elapsed.start();
+        QVERIFY(window.close());
         QVERIFY2(elapsed.elapsed() < 1000,
-             "Window destruction waited for the entire simulated build delay");
+                 "Closing the window waited for the entire simulated build delay");
     }
 };
 
