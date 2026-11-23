@@ -40,18 +40,26 @@ namespace aiws::gui
     class IdleCorpusState final : public CorpusState
     {
     public:
+        // If we're idle, we want to be able to rebuild whenever there are documents.
         void buildRequested(MainWindow &window) override
         {
+            std::cout << "It's working!!" << std::endl;
             window.request_build_from_state();
         }
+
+        // If we change while in idle, the corpus is no longer valid
         void workspaceChanged(MainWindow &window) override
         {
             window.invalidate_corpus();
         }
+
+        // Pretty standard reset call
         void reset(MainWindow &window) override
         {
             window.reset_from_state();
         }
+
+        // Handle
         void buildFinished(MainWindow &window, int id, BuildResult) override
         {
             window.discard_build_from_state(id);
@@ -151,7 +159,7 @@ namespace aiws::gui
         reset_button_ = new QPushButton("Reset", this);
         reset_button_->setStyleSheet(
             "QPushButton {"
-            "    background-color: #fc9d03;" // Green background
+            "    background-color: #fc9d03;" // Orange background
             "    color: white;"              // White text
             "    border-radius: 5px;"
             "    padding: 5px;"
@@ -160,7 +168,7 @@ namespace aiws::gui
         exit_button_ = new QPushButton("Exit", this);
         exit_button_->setStyleSheet(
             "QPushButton {"
-            "    background-color: #911600;" // Green background
+            "    background-color: #911600;" // Red background
             "    color: white;"              // White text
             "    border-radius: 5px;"
             "    padding: 5px;"
@@ -343,9 +351,11 @@ namespace aiws::gui
         set_corpus_state(std::make_unique<BuildingCorpusState>());
     }
 
+    // Handles the end of a build
     void MainWindow::build_finished_from_state(int id, BuildResult result)
     {
 
+        // Check to see if this build is still current, discard if not.
         if (id != current_build_id_)
         {
             discard_build_from_state(id);
@@ -354,30 +364,34 @@ namespace aiws::gui
 
         corpus_building_ = false;
 
+        // If our workspace has changed since the start of the build, we want to discard this one.
         if (workspace_changed_)
         {
             discard_build_from_state(id);
             return;
         }
 
+        // If there was an error during building, note it, and don't allow this build to be applied
         if (result.error)
         {
-            // Report error
             corpus_current_ = false;
             invalidate_corpus();
             set_corpus_state(std::make_unique<IdleCorpusState>());
             return;
         }
 
+        // Set our core equal to the new build's core
         processing_core_ = std::move(*result.core);
         corpus_current_ = true;
 
+        // Inform the user of success
         status_label_->setText("Corpus Built Successfully");
-        workspace_widget_->set_corpus_status(
-            QString("Corpus: Ready - %1 Chunks")
-                .arg(processing_core_.chunk_count()));
+        workspace_widget_->set_corpus_status(QString("Corpus: Ready - %1 Chunks").arg(processing_core_.chunk_count()));
 
+        // Update actions after successful build
         update_action_states();
+
+        // Change to Ready Corpus State
         set_corpus_state(std::make_unique<ReadyCorpusState>());
     }
 
@@ -392,18 +406,24 @@ namespace aiws::gui
 
     void MainWindow::discard_build_from_state(int id)
     {
+        // If the build we are discarding is in build_futures, remove it
         auto future_it = build_futures_.find(id);
         if (future_it != build_futures_.end())
             build_futures_.erase(future_it);
 
+        // We only want to discard the current build, if this is not the current build we ignore it
         if (id != current_build_id_)
             return;
 
+        // We are no longer building, and our corpus is no longer current
         corpus_building_ = false;
         corpus_current_ = false;
 
+        // Inform user that the corpus has been discarded
         status_label_->setText("Corpus Build Discarded");
         invalidate_corpus();
+
+        // Return to the idle state
         set_corpus_state(std::make_unique<IdleCorpusState>());
     }
 
@@ -428,7 +448,7 @@ namespace aiws::gui
         QMainWindow::closeEvent(event);
     }
 
-    // Stops the current build (go figure)
+    // Cancels the current build work and shuts down the worker.
     void MainWindow::stop_build()
     {
 
@@ -454,6 +474,7 @@ namespace aiws::gui
             }
         }
 
+        // Wake the worker so it can observe the shutdown state.
         build_condition_.notify_all();
         if (build_thread_.joinable())
             build_thread_.join();
@@ -461,13 +482,25 @@ namespace aiws::gui
 
     void MainWindow::cancel_active_build()
     {
+        // Lock the mutex since it accesses shared data
         {
             std::lock_guard<std::mutex> lock(build_mutex_);
+
+            // If there is already an active cancellation (pointer exists), we make
+            //      sure our atomic bool notes the cancellation.
             if (active_cancellation_)
+            {
                 active_cancellation_->store(true);
+            }
+
+            // If there is already a pending build (pointer exists), we make sure it's
+            //       atomic bool notes the cancellation.
             if (pending_build_)
+            {
                 pending_build_->cancellation->store(true);
+            }
         }
+
         build_condition_.notify_all();
     }
 
@@ -476,27 +509,34 @@ namespace aiws::gui
         exit_callback_ = callback;
     }
 
+    // Adds a document to the workspace
     void MainWindow::add_document()
     {
+
+        // Allow the user to pick a filepath from the fileDialog
         QString filePath = QFileDialog::getOpenFileName(
             this,
             "Add Document",
             QString(),
             "Text Files (*.txt)");
 
+        // Exit function if one is not chosen
         if (filePath.isEmpty())
             return;
 
         QFile file(filePath);
 
+        // Make sure the file can be opened
         if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
         {
             qDebug() << "Failed to open:" << file.errorString();
             return;
         }
 
+        // Update state accordingly based on this addition
         corpus_state_->workspaceChanged(*this);
 
+        // Derive necesssary info for the workspace
         QFileInfo fileInfo(filePath);
         QString fileName = fileInfo.fileName();
 
@@ -515,16 +555,22 @@ namespace aiws::gui
         update_action_states();
     }
 
+    // Calls the build function for the corresponding corpus state of the program
     void MainWindow::build_corpus()
     {
         corpus_state_->buildRequested(*this);
     }
 
+    // Actually builds the corpus
     void MainWindow::build_worker()
     {
+        // This should always be running on the worker thread
         while (true)
         {
+
             std::unique_ptr<BuildRequest> request;
+
+            // Lock the mutex since it accesses shared data
             {
                 std::unique_lock<std::mutex> lock(build_mutex_);
                 build_condition_.wait(lock, [this]
@@ -745,7 +791,6 @@ namespace aiws::gui
 
     void MainWindow::invalidate_corpus()
     {
-        workspace_widget_->set_corpus_status("Corpus: Not Built");
         workspace_widget_->set_build_corpus_enabled(false);
         corpus_current_ = false;
 
