@@ -8,6 +8,8 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#include <iostream>
+
 using aiws::gui::MainWindow;
 
 class StudentTests final : public QObject
@@ -149,9 +151,7 @@ private slots:
         QVERIFY(build_button != nullptr);
         build_button->click();
 
-        QTRY_VERIFY_WITH_TIMEOUT(
-            status->text().startsWith(QStringLiteral("Corpus Build Failed:")),
-            5000);
+        QTRY_VERIFY_WITH_TIMEOUT(status->text().startsWith(QStringLiteral("Corpus Build Failed:")), 5000);
         QVERIFY(!search_button->isEnabled());
         QVERIFY(!inspect_button->isEnabled());
     }

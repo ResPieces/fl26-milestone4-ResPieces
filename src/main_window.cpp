@@ -375,6 +375,20 @@ namespace aiws::gui
         {
             corpus_current_ = false;
             invalidate_corpus();
+            QString error_message;
+            try
+            {
+                std::rethrow_exception(result.error);
+            }
+            catch (const std::exception &error)
+            {
+                error_message = QString::fromUtf8(error.what());
+            }
+            catch (...)
+            {
+                error_message = "non-standard exception";
+            }
+            status_label_->setText(QString("Corpus Build Failed: %1").arg(error_message));
             set_corpus_state(std::make_unique<IdleCorpusState>());
             return;
         }
