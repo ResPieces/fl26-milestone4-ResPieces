@@ -580,6 +580,7 @@ namespace aiws::gui
         {
 
             std::unique_ptr<BuildRequest> request;
+            bool canceled_before_start = false;
 
             // Lock the mutex since it accesses shared data
             {
@@ -596,10 +597,19 @@ namespace aiws::gui
 
                 // Otherwise our request is our pending_build_
                 request = std::move(pending_build_);
+                canceled_before_start = request->cancellation->load();
             }
 
             // Just notes that a build has started for later use
             emit build_worker_started(request->id);
+
+#ifdef AIWS_FAULT_NO_CANCEL
+            // Cannot cancel later requeests but will still stop if prompted
+            const std::atomic<bool> *cancellation =
+                canceled_before_start ? request->cancellation.get() : &stopping_build_worker_;
+#else
+            const std::atomic<bool> *cancellation = request->cancellation.get();
+#endif
 
             BuildResult result;
 
@@ -609,7 +619,7 @@ namespace aiws::gui
                 {
                     for (std::size_t i = 0;
                          i < request->workspace.documents().size() &&
-                         !request->cancellation->load();
+                         !cancellation->load();
                          i++)
                     {
 
@@ -618,11 +628,11 @@ namespace aiws::gui
 
                         // Wait for the delay_ms to pass or a cancellation/stop to occur.
                         build_condition_.wait_for(lock, std::chrono::milliseconds(request->delay_ms),
-                                                  [this, &request]
-                                                  { return request->cancellation->load() || stopping_build_worker_; });
+                                                  [this, cancellation]
+                                                  { return cancellation->load() || stopping_build_worker_; });
 
                         // Stop the build if we are canceling or stopping the worker.
-                        if (request->cancellation->load() || stopping_build_worker_)
+                        if (cancellation->load() || stopping_build_worker_)
                         {
                             break;
                         }
@@ -630,10 +640,10 @@ namespace aiws::gui
                 }
 
                 // If we haven't had a cancellation for this request, perform the rebuild
-                if (!request->cancellation->load())
+                if (!cancellation->load())
                 {
                     result.core = std::make_unique<ProcessingCore>();
-                    result.core->rebuild(request->workspace, request->cancellation.get());
+                    result.core->rebuild(request->workspace, cancellation);
                 }
             }
             catch (...)
