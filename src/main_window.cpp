@@ -52,7 +52,7 @@ namespace aiws::gui
         {
             window.reset_from_state();
         }
-        void buildFinished(MainWindow &window, int id, BuildResult result) override
+        void buildFinished(MainWindow &window, int id, BuildResult) override
         {
             window.discard_build_from_state(id);
         }
@@ -115,7 +115,7 @@ namespace aiws::gui
         {
             window.reset_from_state();
         }
-        void buildFinished(MainWindow &window, int id, BuildResult result) override
+        void buildFinished(MainWindow &window, int id, BuildResult) override
         {
             if (id == window.current_build_id_)
                 window.discard_build_from_state(id);
@@ -271,71 +271,189 @@ namespace aiws::gui
         corpus_state_ = std::move(state);
     }
 
-    //
+    // Starts or replaces a build, cancels old work, and enters the Building corpus state.
     void MainWindow::request_build_from_state()
     {
+        // When we build a state, we note that we are actively building and that the
+        //      new build will invalidate the old corpus.
         corpus_building_ = true;
         corpus_current_ = false;
+        workspace_changed_ = false;
+
+        // Update the status label and buttons available to the user.
         status_label_->setText("Building Corpus...");
         update_action_states();
 
         const int id = ++next_build_id_;
         current_build_id_ = id;
 
-        auto promise =
-            std::make_shared<std::promise<BuildResult>>();
-        build_futures_.emplace(id, promise->get_future());
+        // Create a new promise/future pair for this build, add that and the ID to
+        //      an unordered map for build futures. Set up this way in case the user
+        //      presses the build button multiple times. This allows for the safe
+        //      replacement of builds as the program runs.
+        auto current_promise = std::make_shared<std::promise<BuildResult>>();
+        build_futures_.emplace(id, current_promise->get_future());
 
-        auto cancellation =
-            std::make_shared<std::atomic<bool>>(false);
+        auto cancellation = std::make_shared<std::atomic<bool>>(false);
 
         std::unique_ptr<BuildRequest> replaced_request;
+
+        // Here we modify shared data between the GUI/worker thread, so we have to lock
+        //      the mutex.
         {
             std::lock_guard<std::mutex> lock(build_mutex_);
 
+            // If there is already an active cancellation (pointer exists), we make
+            //      sure our atomic bool notes the cancellation.
             if (active_cancellation_)
+            {
                 active_cancellation_->store(true);
+            }
 
+            // If there is already a build pending (pointer exists), cancel it and
+            //       retain ownership in replaced_request until the old
+            //       std::future entry is removed.
             if (pending_build_)
             {
                 pending_build_->cancellation->store(true);
                 replaced_request = std::move(pending_build_);
             }
 
+            // Create our new build request
             pending_build_ = std::make_unique<BuildRequest>(
                 BuildRequest{
-                    id,
+                    current_build_id_,
                     workspace_,
-                    promise,
+                    current_promise,
                     build_delay_ms_,
                     cancellation});
 
+            // Track the new build's cancellation flag
             active_cancellation_ = cancellation;
         }
 
+        // Get rid of the future belonging to the obsolete pending request.
         if (replaced_request)
             build_futures_.erase(replaced_request->id);
 
+        // Notify the condition variable
         build_condition_.notify_one();
+
+        // Transition to the Building State
         set_corpus_state(std::make_unique<BuildingCorpusState>());
     }
 
+    void MainWindow::build_finished_from_state(int id, BuildResult result)
+    {
+
+        if (id != current_build_id_)
+        {
+            discard_build_from_state(id);
+            return;
+        }
+
+        corpus_building_ = false;
+
+        if (workspace_changed_)
+        {
+            discard_build_from_state(id);
+            return;
+        }
+
+        if (result.error)
+        {
+            // Report error
+            corpus_current_ = false;
+            invalidate_corpus();
+            set_corpus_state(std::make_unique<IdleCorpusState>());
+            return;
+        }
+
+        processing_core_ = std::move(*result.core);
+        corpus_current_ = true;
+
+        status_label_->setText("Corpus Built Successfully");
+        workspace_widget_->set_corpus_status(
+            QString("Corpus: Ready - %1 Chunks")
+                .arg(processing_core_.chunk_count()));
+
+        update_action_states();
+        set_corpus_state(std::make_unique<ReadyCorpusState>());
+    }
+
+    // Manages changes to the current state, if a change occurs, the state is now stale :(
+    void MainWindow::workspace_changed_from_state()
+    {
+        workspace_changed_ = true;
+        cancel_active_build();
+        invalidate_corpus();
+        set_corpus_state(std::make_unique<StaleBuildingCorpusState>());
+    }
+
+    void MainWindow::discard_build_from_state(int id)
+    {
+        auto future_it = build_futures_.find(id);
+        if (future_it != build_futures_.end())
+            build_futures_.erase(future_it);
+
+        if (id != current_build_id_)
+            return;
+
+        corpus_building_ = false;
+        corpus_current_ = false;
+
+        status_label_->setText("Corpus Build Discarded");
+        invalidate_corpus();
+        set_corpus_state(std::make_unique<IdleCorpusState>());
+    }
+
+    // Resets the state and returns to Idle.
+    void MainWindow::reset_from_state()
+    {
+        cancel_active_build();
+
+        ++current_build_id_;
+        corpus_building_ = false;
+        workspace_changed_ = true;
+        corpus_current_ = false;
+
+        invalidate_corpus();
+        set_corpus_state(std::make_unique<IdleCorpusState>());
+    }
+
+    // Closes the window after the user chooses to
     void MainWindow::closeEvent(QCloseEvent *event)
     {
         stop_build();
         QMainWindow::closeEvent(event);
     }
 
+    // Stops the current build (go figure)
     void MainWindow::stop_build()
     {
+
+        // Lock the mutex since it accesses shared data
         {
             std::lock_guard<std::mutex> lock(build_mutex_);
+
+            // Set atomic bool to true to indicate the worker thread is stopping.
             stopping_build_worker_ = true;
+
+            // If there is already an active cancellation (pointer exists), we make
+            //      sure our atomic bool notes the cancellation.
             if (active_cancellation_)
+            {
                 active_cancellation_->store(true);
+            }
+
+            // If there is already a pending build (pointer exists), we make sure it's
+            //       atomic bool notes the cancellation.
             if (pending_build_)
+            {
                 pending_build_->cancellation->store(true);
+            }
         }
+
         build_condition_.notify_all();
         if (build_thread_.joinable())
             build_thread_.join();
@@ -425,28 +543,29 @@ namespace aiws::gui
                 if (request->delay_ms > 0)
                 {
                     for (std::size_t i = 0;
-                         i < request->workspace.documents().size() && !cancel_build_.load();
+                         i < request->workspace.documents().size() &&
+                         !request->cancellation->load();
                          i++)
                     {
                         std::unique_lock<std::mutex> lock(build_mutex_);
                         build_condition_.wait_for(
                             lock,
                             std::chrono::milliseconds(request->delay_ms),
-                            [this]
+                            [this, &request]
                             {
-                                return cancel_build_.load() || stopping_build_worker_;
+                                return request->cancellation->load() || stopping_build_worker_;
                             });
-                        if (cancel_build_.load() || stopping_build_worker_)
+                        if (request->cancellation->load() || stopping_build_worker_)
                         {
                             break;
                         }
                     }
                 }
 
-                if (!cancel_build_.load())
+                if (!request->cancellation->load())
                 {
                     result.core = std::make_unique<ProcessingCore>();
-                    result.core->rebuild(request->workspace, &cancel_build_);
+                    result.core->rebuild(request->workspace, request->cancellation.get());
                 }
             }
             catch (...)
@@ -689,60 +808,7 @@ namespace aiws::gui
         BuildResult result = future_it->second.get();
         build_futures_.erase(future_it);
 
-        if (id != current_build_id_)
-            return;
-
-        corpus_building_ = false;
-
-// Check whether the workspace changed during the build.
-#ifndef AIWS_FAULT_ACCEPT_STALE
-        if (workspace_changed_)
-        {
-            status_label_->setText("Corpus Build Discarded");
-            corpus_current_ = false;
-
-            update_action_states();
-            return;
-        }
-#endif
-
-        // Handle build failures.
-        if (result.error)
-        {
-#ifndef AIWS_FAULT_LOSE_FAILURE
-            try
-            {
-                std::rethrow_exception(result.error);
-            }
-            catch (const std::exception &e)
-            {
-                status_label_->setText(
-                    QString("Corpus Build Failed: %1").arg(e.what()));
-            }
-            catch (...)
-            {
-                status_label_->setText("Corpus Build Failed");
-            }
-
-            corpus_current_ = false;
-            update_action_states();
-#endif
-            return;
-        }
-
-        // Accept the completed corpus.
-        processing_core_ = std::move(*result.core);
-
-        corpus_current_ = true;
-
-        status_label_->setText("Corpus Built Successfully");
-
-        QString message = QString("Corpus: Ready - %1 Chunks")
-                              .arg(processing_core_.chunk_count());
-
-        workspace_widget_->set_corpus_status(message);
-
-        update_action_states();
+        corpus_state_->buildFinished(*this, id, std::move(result));
     }
 
 } // namespace aiws::gui

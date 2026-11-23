@@ -194,6 +194,8 @@ namespace aiws::gui
         void stop_build();
         void cancel_active_build();
         void build_worker();
+
+        // State Functions
         void request_build_from_state();
         void workspace_changed_from_state();
         void reset_from_state();
@@ -217,6 +219,7 @@ namespace aiws::gui
         // M4 and M5 Additions:
         int build_delay_ms_{0};
         bool corpus_building_;
+        bool workspace_changed_{false};
         std::thread build_thread_;
         std::mutex build_mutex_;
         std::condition_variable build_condition_;
