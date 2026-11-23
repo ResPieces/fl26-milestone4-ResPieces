@@ -43,7 +43,6 @@ namespace aiws::gui
         // If we're idle, we want to be able to rebuild whenever there are documents.
         void buildRequested(MainWindow &window) override
         {
-            std::cout << "It's working!!" << std::endl;
             window.request_build_from_state();
         }
 
