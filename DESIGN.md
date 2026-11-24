@@ -1,65 +1,53 @@
-# M4 Decision Record
+# M5 Decision Record
 
-(1) threads and ownership, including the statement for constraint 5;
-    * GUI Thread - Owns the Main Window, associated widgets, and the workspace/processing core
-    * Rebuild Thread - Owns a copy of the workspace to rebuild the corpus
-    * Constraint 5 - cancel_build_, a handoff between threads with future.get() in MainWindow.cpp, and
-                        in the destructor for MainWindow
+1. M4 fixes: anything in your M4 that did not work and how you fixed it, or "none".
+    * I'm going to state "none" here, not because my M4 submission was perfect, but
+        because I couldn't diagnose issues based on the Autograder feedback from M4.
+        As far as I can tell this solution should meet all of the requirements, but
+        it's still failing the same autograder tests from the last Milestone and I
+        was unable to figure out why.
 
+2. Threads and shared data: each thread, and the statement required by constraint 4.
+    * There are two threads in this solution, the GUI thread and the build_worker thread.
+    * In response to constraint 4:
+        - pending_build_: The GUI thread modifies it; worker thread removes it. (protected by build_mutex_)
+        - active_cancellation_: The GUI thread updates it and the worker thread does not directly access it. (protected by build_mutex_)
+        - stopping_build_worker_: The GUI thread sets it during when stopping or canceling and the worker thread reads it. (protected by build_mutex_ and is an atomic bool)
+        - BuildRequest::cancellation: Belongs to each build request and is shared by the two threads. (It's an atomic bool)
+        - build_condition_: The worker thread waits on it and the GUI thread notifies it. (Used with build_mutex_)
+        - build_futures_: GUI thread uses this one itself, and it contains build ID's/associated futures. (protected by build_mutex_)
+        - BuildRequest::promise: The worker thread sets its value. The GUI thread gest it with build_futures_. Promise/future is synched by std::promise/std::future, and the unordered map access is protected by build_mutex_.
 
-(2) how a finished build is judged valid;
-    A finished build is judged valid if:
-        a. There were no changes to the workspace while the build was processing (new documents/rebuilds)
-        b. No errors occured during the rebuild
-    If both of those conditions are met the rebuild is deemed valid and used going forward.
+3. States: each state, what it means, and which events change it, as a table or a diagram.
+    * There are four states; idle, stale, ready, and building. As best I can type it up, here is the relation:
+         State      |               Meaning               |         Transition causes
+    -------------------------------------------------------------------------------------------
+          Idle      | Invalid Corpus w/ no Active Build   | To Building -> Build requested
+         Stale      | Active build w/ changed workspace   | To Building -> Build requested
+                    |                                     | To Idle -> Discards a current build
+                    |                                     |         -> Workspace Reset
+        Building    | A build is active w/ invalid corpus | To Stale -> Workspace Changed
+                    |                                     | To Ready -> Build successful/current
+                    |                                     | To Idle -> Build failed/discarded
+                    |                                     |         -> Build reset
+         Ready      | Valid Corpus w/ no Active build     | To Building -> Build requested
+                    |                                     | To Stale -> Workspace Changed 
+                    |                                     |                 w/ active build
+                    |                                     | To Idle -> Workspace Reset
 
+4. One event sequence that threatens R1 to R4, traced step by step through your functions on
+both threads.
+    * Let's say you start a build using build_corpus() and request_build_from_state(). This method creates one queued BuildRequest, sets pending_build_, and notifies build_condition_. The existing build worker thread in build_worker() then wakes, takes pending_build_ under build_mutex_, and begins rebuilding the request’s copied workspace snapshot on that thread. If we then add another document in the GUI thread using add_document, corpus_state_->workspaceChanged() calls workspace_changed_from_state(), which marks workspace_changed_, calls cancel_active_build(), cancels the active build, invalidates the corpus, and enters StaleBuildingCorpusState. build_worker() observes the cancellation through request->cancellation and stops wihout rebuilding or publishing an old corpus. It then sets the result promise and invokes corpus_build_finished() on the GUI thread. Returning to that GUI thread, build_finished_from_state() sees workspace_changed_ and calls discard_build_from_state(), preventing the result from becoming current. Because the worker checks cancellation periodically, a later build does not wait for the obsolete build to finish. Eventually, once all work is done, exit calls closeEvent() and stop_build(). stop_build() sets stopping_build_worker_, cancels the request, and wakes build_condition_ before joining build_thread_. The worker returns promptly and is joined, satisfying clean shutdown.
 
-(3) changes since the checkpoint;
-    * No work was done for the checkpoint so here is my answer to the original questions:
-        1. GUI Thread - Owns the Main Window, associated widgets, and the workspace/processing core
-            Rebuild Thread - Owns a copy of the workspace to rebuild the corpus
-        2. The states of the corpus itself are built/not built. The wider application has more states
-            but for this milestone, the corpus' build status is all that matters. The corpus initializes
-            as unbuilt until initiated by the user upon pressing the "build" button. When the user presses
-            the button, it creates another thread to build the corpus. Upon successful completion the
-            corpus is validated, and remains so until;
-                a. A new document is added
-                b. The corpus is reset
-            Immediately upon either of those actions occuring, the corpus is invalidated and a rebuild is
-            required.
-        3.  R1 after M3 was threatened by the fact that processing occured on the GUI thread, which would
-            have hindered responsiveness. To ensure that the GUI remains responsive, I create a
-            promise/future pair which allows me to rebuild from a snapshot on a separate thread, while
-            taking note in the GUI thread that a rebuild is occuring. Because the rebuild is managed on
-            that separate thread, it keeps the GUI thread free to continue responding to user inputs.
-            To ensure R2 is maintained, I have a boolean in place that tracks any changes that would
-            impact corpus validity when the code is running. For example, once I start building a corpus
-            I set a boolean workspace_changed_ to false. If at any point during the build, I add a 
-            document or reset, that boolean becomes true. Then after my corpus is built, I check to see if
-            that variable is still false. If it is, I know that the corpus I've just built is still valid,
-            and I display it to the user. If it is true, then the corpus was changed and must be rebuilt,
-            which I tell the user.
-        4.  Main Window owns the processing core as a member function. Once a build begins, we use a new 
-            core, which is owned by BuildResult::core. Once the build finishes successfully, that core
-            is moved to/owned by Main Window.
-        5.  I originally looked into QThread, and began working with it. It was a very intuitive system
-            and made implementation, however, it was unfortunately out of scope, and so while I liked it,
-            I was unable to proceed with it.
+5. Your answers to the three decisions in Section 4, one or two sentences each, naming the
+functions that carry them out.
+    3.1: The user can request to rebuild while already building, which calls request_build_from_state(). That cancels the current build and any other pending requests and makes our pending_build_ the new request.
+    3.2: With the CR-1 instructions being posted so late I still didn't get the chance to properly implement remote adds. :(
+    3.3: The minimum shared interface needs to be the pending_build_ and build_condition to hand off work to the worker thread, the stopping_build_worker_ flag for shutdowns, the promise/future pairs for BuildResults, and the build_futures_ map to tie build requests to their correct ID. The GUI adds requests, leading to the worker being woken up/canceling builds, and having to report data/identification information. If we tried to go any smaller it just would not work.
 
+6. Where each fault switch is and which test catches it.
+    * AIWS_FAULT_NO_CANCEL: Changes MainWindow::build_worker() so a build that has already started only uses shutdown cancellation and no longer works for replacements. It is covered by the replacement_build_does_not_wait_for_canceled_build() test.
+    * AIWS_FAULT_SILENT_SHUTDOWN: Makes MainWindow::stop_build() skip build_condition_.notify_all() while a build is active. It is covered by the destroying_window_during_build_joins_worker() test.
 
-(4) CR-1 impact, meaning which functions changed and why the rest did not;
-    * I was not able to implement CR-1. There was little instructional material
-        about Unix sockets or resources provided to address them. With no prior
-        experience I struggled to formulate a solution that I could understand
-        without relying substantially on AI.
-
-(5) where each fault switch is and which test catches it;
-    * Both fault switches lie in my MainWindow::corpus_build_finished() function.
-    * AIWS_FAULT_ACCEPT_STALE bypasses my check for whether or not the workspace was changed. This is
-        validated using base_build_test and reset_while_building.
-    * AIWS_FAULT_LOSE_FAILURE ignores my error reporting and is validated in report_rebuild_failure()
-
-
-(6) AI-use disclosure, required but ungraded.
-    * AI used to assist in the creation of test cases and debugging of multithreaded work
-        in main_window.cpp as well as providing pointers for solving issues with the autograder.
+7. AI-use disclosure, required but ungraded.
+    * Inquiries about structure implementation (how I settled on states/transitions), proofreading certain comments/text entries, and debugging as I was writing code as well as after receiving autograder feedback
