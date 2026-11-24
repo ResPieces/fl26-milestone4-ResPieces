@@ -1,0 +1,323 @@
+[33mcommit 72d30e72ec21108f6b7454a33a7ad367a0dd1d4b[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m)[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-23 23:52:43 -0500
+
+    Finished design.md
+
+ DESIGN.md      | 118 [32m+++++++++++++++++++++[m[31m------------------------[m
+ DESIGN_NOTE.md |   3 [31m--[m
+ HISTORY.txt    | 148 [31m---------------------------------------------------------[m
+ 3 files changed, 53 insertions(+), 216 deletions(-)
+
+[33mcommit 0477ec9498dc4c1cc6ee544d434c545502b9afcc[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-23 22:54:46 -0500
+
+    I think this is as good as it's going to get- I can't for the life of me figure out why everything else in the autograder is failing
+
+ src/main_window.cpp | 6 [32m++[m[31m----[m
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+[33mcommit c47768ff6e7c833816807f0550adf52e89efc4c8[m[33m ([m[1;31morigin/main[m[33m)[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-23 22:09:28 -0500
+
+    Trying to fix the NO CANCEL Fault issue with AI assistance
+
+ tests/student_tests.cpp | 26 [32m++++++++++++++++++++++++++[m
+ 1 file changed, 26 insertions(+)
+
+[33mcommit ce7330329067b6641d4156b490860933e586069e[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-23 21:59:55 -0500
+
+    Fixed the student test case hopefully?
+
+ tests/student_tests.cpp | 2 [32m+[m[31m-[m
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+[33mcommit d2b5f79b0e329c2a2114b5ff88ccbb09aa012a7a[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-23 17:43:55 -0500
+
+    Had an issue with one of my old tests, used AI to help debug
+
+ src/main_window.cpp     | 14 [32m++++++++++++++[m
+ tests/student_tests.cpp |  6 [32m+++[m[31m---[m
+ 2 files changed, 17 insertions(+), 3 deletions(-)
+
+[33mcommit 475398d80d42ecbfc765bb755b352b1bfeca17bf[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-23 17:28:38 -0500
+
+    Added Silent Shutdown Fault
+
+ src/main_window.cpp | 6 [32m++++++[m
+ 1 file changed, 6 insertions(+)
+
+[33mcommit 8470a2e38beba68f60e92b1e48d88e43648d8045[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-23 17:26:16 -0500
+
+    Updated to include AIWS_FAULT_NO_CANCEL
+
+ src/main_window.cpp | 22 [32m++++++++++++++++[m[31m------[m
+ 1 file changed, 16 insertions(+), 6 deletions(-)
+
+[33mcommit 80828f5ba022016b60d7cd9d02003c3a833b4faf[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-23 14:43:24 -0500
+
+    Removed a debug line
+
+ src/main_window.cpp | 1 [31m-[m
+ 1 file changed, 1 deletion(-)
+
+[33mcommit 92f396dfb5f03a77f597fc2b249596991aacb9f7[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-23 14:41:36 -0500
+
+    State Design in a pretty good state?
+
+ src/main_window.cpp | 88 [32m+++++++++++++++++++++++++++++++[m[31m----------------------[m
+ 1 file changed, 52 insertions(+), 36 deletions(-)
+
+[33mcommit 437e918d978868d15ff4e9614bda1d86ee255807[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-23 14:16:02 -0500
+
+    Still commenting so I know what all of this does later
+
+ src/main_window.cpp | 61 [32m++++++++++++++++++++++++++++++++++++++++++++++[m[31m-------[m
+ 1 file changed, 53 insertions(+), 8 deletions(-)
+
+[33mcommit 4ce8947569b22552b4e3a3ce4cbff68021552459[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-23 10:44:24 -0500
+
+    Adding in comments and implementing state design pattern
+
+ include/aiws/gui/main_window.hpp |   3 [32m+[m
+ src/main_window.cpp              | 206 [32m++++++++++++++++++++++++++[m[31m-------------[m
+ 2 files changed, 139 insertions(+), 70 deletions(-)
+
+[33mcommit 11d3ed89e6c35faf881f15ae773a9cf49209a5c5[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-22 23:18:16 -0500
+
+    Trying to lay out the framework for a state design. Structure being done w/AI assistance
+
+ CMakeLists.txt                   |   2 [32m+[m[31m-[m
+ include/aiws/gui/main_window.hpp |  29 [32m+++++[m[31m-[m
+ src/main_window.cpp              | 204 [32m+++++++++++++++++++++++++++++++[m[31m--------[m
+ tests/student_tests.cpp          |  26 [32m+++[m[31m--[m
+ 4 files changed, 208 insertions(+), 53 deletions(-)
+
+[33mcommit c39a92704b7a1f2419f59710aad9f5bc8415eecc[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-22 16:24:13 -0500
+
+    Removed an obsolete cout
+
+ src/main_window.cpp | 1 [31m-[m
+ 1 file changed, 1 deletion(-)
+
+[33mcommit 2dd1eb9f0a3b8a5378f936bc2e1fe21ef3ad4639[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-22 15:47:16 -0500
+
+    Fixed the promise/future idea by assigning builds ID's
+
+ include/aiws/gui/main_window.hpp |  9 [32m+++++++[m[31m--[m
+ src/main_window.cpp              | 29 [32m++++++++++++++++++++++++[m[31m-----[m
+ 2 files changed, 31 insertions(+), 7 deletions(-)
+
+[33mcommit 31a9ff2503613f42bb8e9bbba7d7c75fe8c335c6[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-21 14:08:42 -0500
+
+    Invoked the wrong cancel method, but now there's a bug with the promise/future setup :(
+
+ src/main_window.cpp | 2 [32m+[m[31m-[m
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+[33mcommit 0409758f3bf3d46219b1d249875f020f7c1acf7f[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-21 13:37:24 -0500
+
+    Stopping build if rebuild called while currently building. Trying to fix R2
+
+ src/main_window.cpp | 6 [32m++++[m[31m--[m
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+[33mcommit ae06368b5adf7dacd634c9689138e8944deaa3ca[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-21 13:07:44 -0500
+
+    Restructured the builder thread which I think is to spec?
+
+ include/aiws/gui/main_window.hpp |  17 [32m+++++[m[31m-[m
+ src/main_window.cpp              | 108 [32m++++++++++++++++++++++++++[m[31m-------------[m
+ 2 files changed, 88 insertions(+), 37 deletions(-)
+
+[33mcommit 9b08c524526e1e88b6d7edfef03741cba2c3b2f2[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-21 11:34:22 -0500
+
+    Baseline M5 commit
+
+ CMakeLists.txt      | 6 [32m+++[m[31m---[m
+ src/main_window.cpp | 6 [32m++++[m[31m--[m
+ 2 files changed, 7 insertions(+), 5 deletions(-)
+
+[33mcommit 5fd4b8a31da7913b4181c0df4833707180c7b24f[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-21 00:52:39 -0500
+
+    Addressed Autograder failures for R4
+
+ include/aiws/gui/main_window.hpp |  5 [32m+++[m
+ include/aiws/processing_core.hpp | 84 [32m+++++++++++++++++++++[m[31m-------------------[m
+ questions_to_ask.txt             |  4 [32m++[m
+ src/main_window.cpp              | 24 [32m+++++++++++[m[31m-[m
+ src/processing_core.cpp          | 15 [32m++++++[m[31m-[m
+ 5 files changed, 89 insertions(+), 43 deletions(-)
+
+[33mcommit 36a61e4fdee851a4190afe3795062c21c9d8ad29[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-21 00:29:15 -0500
+
+    Fixed CODE QUALITY issues from M4 submission
+
+ questions_to_ask.txt |  0
+ src/corpus_index.cpp | 12 [31m------------[m
+ src/main_window.cpp  | 19 [32m++++++++[m[31m-----------[m
+ 3 files changed, 8 insertions(+), 23 deletions(-)
+
+[33mcommit 4631beaf4bf296eea93e5e3eae7e1f93aefcd3d1[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-09 23:03:50 -0500
+
+    Added History.txt
+
+ HISTORY.txt | 148 [32m++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++[m
+ 1 file changed, 148 insertions(+)
+
+[33mcommit 908976faf92b66294a8ca58699872f5e93472e6a[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-09 23:01:23 -0500
+
+    Should be done except for history.txt
+
+ DESIGN.md           |  18 [32m+[m[31m--[m
+ src/main.cpp        |  15 [32m+++[m
+ src/main_window.cpp |   7 [32m+[m[31m-[m
+ tools/aiws_send.cpp | 344 [31m----------------------------------------------------[m
+ 4 files changed, 28 insertions(+), 356 deletions(-)
+
+[33mcommit 9785c39509ccf6546d7b3c9b3a1e34ab506901fe[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-09 22:38:59 -0500
+
+    Addressing Autograder errors
+
+ DESIGN.md                        | 60 [32m+++++++++++++++++++++++++++[m[31m-[m
+ include/aiws/gui/main_window.hpp | 10 [32m++[m[31m---[m
+ src/main_window.cpp              | 85 [32m+++++++++++++++++[m[31m-----------------------[m
+ tests/student_tests.cpp          | 73 [32m++++++++++++++++++++++++++++++++[m[31m--[m
+ 4 files changed, 169 insertions(+), 59 deletions(-)
+
+[33mcommit 73d07bcbf49d31677ffd9e759b8bd31f969b19fb[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-09 20:00:48 -0500
+
+    Trying to figure out how tf to do CR-1. We have never covered this in class :|
+
+ include/aiws/gui/main_window.hpp |   6 [32m+[m
+ src/main_window.cpp              |  23 [32m++[m[31m-[m
+ tools/aiws_send.cpp              | 340 [32m++++++++++++++++++++++++++++++++++++++[m[31m-[m
+ 3 files changed, 359 insertions(+), 10 deletions(-)
+
+[33mcommit 6e968a711a14775f78b6716a31650823ace0fc28[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-07 22:24:28 -0500
+
+    Finished base M4 Requirements
+
+ include/aiws/gui/main_window.hpp |   2 [32m+[m
+ src/main_window.cpp              |  21 [32m++++[m[31m--[m
+ tests/student_tests.cpp          | 154 [32m++++++++++++++++++++++++++++++++++++++[m[31m-[m
+ 3 files changed, 169 insertions(+), 8 deletions(-)
+
+[33mcommit 502472d66a146106f52f72ac3483fd61a33c56dd[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-07 20:46:52 -0500
+
+    Added thread for rebuilding
+
+ include/aiws/gui/main_window.hpp | 306 [32m+++++++++++++++++++++[m[31m------------------[m
+ src/main_window.cpp              | 142 [32m++++++++++++++++[m[31m--[m
+ 2 files changed, 290 insertions(+), 158 deletions(-)
+
+[33mcommit 0b80e7be9ed0d83940534917c49648fd4e054516[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-11-07 18:46:05 -0500
+
+    Updated with finished M3
+
+ .qt/QtDeploySupport.cmake     |  45 [32m+++++[m
+ dockerfile                    |  32 [32m++++[m
+ src/chunker.cpp               |  93 [32m+++++++++[m
+ src/context_builder.cpp       |  29 [32m+++[m
+ src/context_widget.cpp        | 107 [32m+++++++++++[m
+ src/corpus_index.cpp          | 181 [32m++++++++++++++++++[m
+ src/document.cpp              |  14 [32m++[m
+ src/main.cpp                  |  34 [32m++++[m
+ src/main_window.cpp           | 431 [32m++++++++++++++++++++++++++++++++++++++++++[m
+ src/processing_core.cpp       | 127 [32m+++++++++++++[m
+ src/retrieval_engine.cpp      |  86 [32m+++++++++[m
+ src/search_result_model.cpp   | 140 [32m++++++++++++++[m
+ src/search_widget.cpp         | 209 [32m++++++++++++++++++++[m
+ src/term_inspector_widget.cpp | 112 [32m+++++++++++[m
+ src/text_processor.cpp        | 116 [32m++++++++++++[m
+ src/workspace.cpp             |  17 [32m++[m
+ src/workspace_widget.cpp      | 113 [32m+++++++++++[m
+ tools/aiws_send.cpp           |  12 [32m++[m
+ 18 files changed, 1898 insertions(+)
+
+[33mcommit 8fa2cfd28e799afde737e4290be7c1ad95264f44[m
+Author: Res Sharpe <resmakesthings@gmail.com>
+Date:   2026-10-28 22:33:36 -0400
+
+    Initial commit
+
+ .gitignore                                 |   3 [32m+[m
+ CMakeLists.txt                             |  57 [32m+++++++++++[m
+ DESIGN.md                                  |   3 [32m+[m
+ DESIGN_NOTE.md                             |   3 [32m+[m
+ STARTER_README.pdf                         | Bin [31m0[m -> [32m39600[m bytes
+ data/public/doc_ai.txt                     |   3 [32m+[m
+ data/public/doc_retrieval.txt              |   3 [32m+[m
+ data/public/doc_systems.txt                |   3 [32m+[m
+ data/public/queries.txt                    |   4 [32m+[m
+ include/aiws/chunker.hpp                   |  25 [32m+++++[m
+ include/aiws/chunking_strategy.hpp         |  18 [32m++++[m
+ include/aiws/context_builder.hpp           |  13 [32m+++[m
+ include/aiws/context_strategy.hpp          |  17 [32m+++[m
+ include/aiws/corpus_index.hpp              |  36 [32m+++++++[m
+ include/aiws/document.hpp                  |  22 [32m++++[m
+ include/aiws/gui/context_widget.hpp        |  75 [32m++++++++++++++[m
+ include/aiws/gui/main_window.hpp           | 159 [32m+++++++++++++++++++++++++++++[m
+ include/aiws/gui/resettable.hpp            |  22 [32m++++[m
+ include/aiws/gui/search_result_model.hpp   |  84 [32m+++++++++++++++[m
+ include/aiws/gui/search_widget.hpp         | 105 [32m+++++++++++++++++++[m
+ include/aiws/gui/term_inspector_widget.hpp |  81 [32m+++++++++++++++[m
+ include/aiws/gui/workspace_widget.hpp      | 101 [32m++++++++++++++++++[m
+ include/aiws/processing_core.hpp           |  53 [32m++++++++++[m
+ include/aiws/processing_types.hpp          |  38 [32m+++++++[m
+ include/aiws/retrieval_engine.hpp          |  18 [32m++++[m
+ include/aiws/retrieval_strategy.hpp        |  20 [32m++++[m
+ include/aiws/text_processor.hpp            |  29 [32m++++++[m
+ include/aiws/workspace.hpp                 |  19 [32m++++[m
+ tests/student_tests.cpp                    |   2 [32m+[m
+ 29 files changed, 1016 insertions(+)
