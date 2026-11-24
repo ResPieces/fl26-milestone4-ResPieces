@@ -97,6 +97,32 @@ private slots:
         QVERIFY(search_button->isEnabled());
     }
 
+    void replacement_build_does_not_wait_for_canceled_build()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+
+        const QString first_path = create_test_doc(directory, "first_cancel.txt");
+        const QString second_path = create_test_doc(directory, "second_cancel.txt");
+        QVERIFY(!first_path.isEmpty());
+        QVERIFY(!second_path.isEmpty());
+
+        MainWindow window;
+        QSignalSpy worker_started(&window, &MainWindow::build_worker_started);
+        QVERIFY(worker_started.isValid());
+        window.set_build_delay_ms(4000);
+        QVERIFY(window.add_document_file(first_path));
+
+        auto *build_button = find_button(window, "Build Corpus");
+        QVERIFY(build_button != nullptr);
+        build_button->click();
+        QTRY_COMPARE_WITH_TIMEOUT(worker_started.size(), 1, 1000);
+
+        QVERIFY(window.add_document_file(second_path));
+        build_button->click();
+        QTRY_COMPARE_WITH_TIMEOUT(worker_started.size(), 2, 1500);
+    }
+
     void reset_while_building()
     {
         QTemporaryDir directory;
