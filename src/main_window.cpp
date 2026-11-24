@@ -877,9 +877,6 @@ namespace aiws::gui
             return false;
         }
 
-        workspace_changed_ = true;
-        cancel_active_build();
-
         QFileInfo fileInfo(path);
         QString fileName = fileInfo.fileName();
 
@@ -888,10 +885,11 @@ namespace aiws::gui
 
         Document newDoc = Document(path.toStdString(), fileName.toStdString(), fileContents.toStdString());
 
+        corpus_state_->workspaceChanged(*this);
         workspace_.add_document(newDoc);
 
         workspace_widget_->add_document(fileName);
-        invalidate_corpus();
+        status_label_->setText("Document added; rebuild corpus");
         update_action_states();
         return true;
     }
